@@ -5,30 +5,101 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kalkulator Compound Profit</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 20px; display: flex; flex-direction: column; align-items: center; }
-        .card { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); width: 100%; max-width: 450px; margin-bottom: 20px; border-top: 8px solid #27ae60; }
+        /* Background Bergerak */
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+            background-size: 400% 400%;
+            animation: gradient 15s ease infinite;
+        }
+
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .card { 
+            background: rgba(255, 255, 255, 0.9); /* Transparan sedikit */
+            backdrop-filter: blur(10px); /* Efek kaca */
+            padding: 25px; 
+            border-radius: 20px; 
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2); 
+            width: 100%; 
+            max-width: 450px; 
+            margin-bottom: 20px; 
+            border-top: 5px solid #ffffff;
+        }
+
         h2 { color: #2c3e50; text-align: center; margin-top: 0; font-size: 22px; }
         .input-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 6px; font-weight: bold; color: #34495e; font-size: 14px; }
-        input { width: 100%; padding: 12px; border: 2px solid #ecf0f1; border-radius: 10px; box-sizing: border-box; font-size: 16px; transition: 0.3s; }
-        input:focus { border-color: #27ae60; outline: none; }
-        button { width: 100%; padding: 15px; background: #27ae60; color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; transition: 0.3s; }
-        button:hover { background: #219150; transform: translateY(-2px); }
-        .result { margin-top: 25px; padding: 20px; background: #ffffff; border-radius: 12px; border: 2px solid #e8f5e9; text-align: center; }
-        .highlight { font-weight: bold; color: #27ae60; display: block; }
         
-        .table-container { width: 100%; max-width: 450px; background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); display: none; margin-top: 10px; }
+        input { 
+            width: 100%; 
+            padding: 12px; 
+            border: 1px solid #ddd; 
+            border-radius: 10px; 
+            box-sizing: border-box; 
+            font-size: 16px; 
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        button { 
+            width: 100%; 
+            padding: 15px; 
+            background: #2c3e50; 
+            color: white; 
+            border: none; 
+            border-radius: 10px; 
+            font-size: 16px; 
+            font-weight: bold; 
+            cursor: pointer; 
+            margin-top: 10px; 
+            transition: 0.3s;
+        }
+
+        button:hover { background: #1a252f; transform: scale(1.02); }
+
+        .result { 
+            margin-top: 25px; 
+            padding: 20px; 
+            background: #27ae60; 
+            color: white; 
+            border-radius: 12px; 
+            text-align: center; 
+            box-shadow: 0 5px 15px rgba(39, 174, 96, 0.3);
+        }
+
+        .highlight { font-weight: bold; color: white; display: block; }
+        
+        .table-container { 
+            width: 100%; 
+            max-width: 450px; 
+            background: rgba(255, 255, 255, 0.9); 
+            border-radius: 20px; 
+            overflow: hidden; 
+            display: none; 
+            margin-top: 10px; 
+            backdrop-filter: blur(10px);
+        }
+
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
         th { background: #2c3e50; color: white; padding: 15px; text-align: left; }
-        td { padding: 12px 15px; border-bottom: 1px solid #f1f1f1; }
-        tr:nth-child(even) { background: #fdfdfd; }
-        tr:last-child { background: #e8f5e9; font-weight: bold; color: #27ae60; }
+        td { padding: 12px 15px; border-bottom: 1px solid #eee; color: #333; }
+        tr:nth-child(even) { background: rgba(0, 0, 0, 0.02); }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2>📈 Profit Calculator</h2>
+    <h2>📈 Profit Calculator Pro</h2>
     
     <div class="input-group">
         <label>Modal Awal (USD)</label>
@@ -53,7 +124,7 @@
     <button onclick="hitung()">HITUNG PROYEKSI</button>
 
     <div class="result" id="resultBox" style="display:none;">
-        <span style="color: #7f8c8d; font-size: 14px;">Total Saldo Akhir:</span>
+        <span style="font-size: 14px; opacity: 0.9;">Total Saldo Akhir:</span>
         <span id="totalAkhir" class="highlight" style="font-size: 28px; margin-top: 5px;"></span>
     </div>
 </div>
@@ -80,12 +151,10 @@
         
         let tableBody = document.getElementById('tableBody');
         tableBody.innerHTML = ""; 
-        
         let saldoSekarang = P;
 
         for (let b = 1; b <= totalBulan; b++) {
             saldoSekarang = saldoSekarang * Math.pow((1 + rate), hPerBulan);
-            
             let row = `<tr>
                 <td>Bulan ${b}</td>
                 <td>${b * hPerBulan}</td>
@@ -95,11 +164,9 @@
         }
 
         document.getElementById('totalAkhir').innerText = "$" + saldoSekarang.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-        
         document.getElementById('resultBox').style.display = 'block';
         document.getElementById('tableContainer').style.display = 'block';
-        
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 </script>
 
