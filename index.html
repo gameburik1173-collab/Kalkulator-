@@ -3,20 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kalkulator Compound Profit</title>
+    <title>Kalkulator Profit Pro</title>
     <style>
         /* Background Bergerak */
         body {
             margin: 0;
-            padding: 20px;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 40px 15px; /* Jarak atas bawah lebih besar agar bg terlihat */
+            font-family: 'Segoe UI', sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
             min-height: 100vh;
             background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
             background-size: 400% 400%;
-            animation: gradient 15s ease infinite;
+            animation: gradient 12s ease infinite;
+            box-sizing: border-box;
         }
 
         @keyframes gradient {
@@ -25,81 +26,78 @@
             100% { background-position: 0% 50%; }
         }
 
+        /* Kotak Kalkulator Dibuat Lebih Kecil & Ramping */
         .card { 
-            background: rgba(255, 255, 255, 0.9); /* Transparan sedikit */
-            backdrop-filter: blur(10px); /* Efek kaca */
-            padding: 25px; 
+            background: rgba(255, 255, 255, 0.75); /* Lebih transparan */
+            backdrop-filter: blur(12px); 
+            padding: 20px; /* Padding dikurangi */
             border-radius: 20px; 
-            box-shadow: 0 15px 35px rgba(0,0,0,0.2); 
+            box-shadow: 0 15px 35px rgba(0,0,0,0.15); 
             width: 100%; 
-            max-width: 450px; 
+            max-width: 320px; /* Lebar diperkecil dari 450px ke 320px */
             margin-bottom: 20px; 
-            border-top: 5px solid #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.3);
         }
 
-        h2 { color: #2c3e50; text-align: center; margin-top: 0; font-size: 22px; }
-        .input-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 6px; font-weight: bold; color: #34495e; font-size: 14px; }
+        h2 { color: #2c3e50; text-align: center; margin-top: 0; font-size: 18px; margin-bottom: 20px; }
+        .input-group { margin-bottom: 12px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #34495e; font-size: 13px; }
         
         input { 
             width: 100%; 
-            padding: 12px; 
-            border: 1px solid #ddd; 
-            border-radius: 10px; 
+            padding: 10px; 
+            border: 1px solid rgba(0,0,0,0.1); 
+            border-radius: 8px; 
             box-sizing: border-box; 
-            font-size: 16px; 
-            background: rgba(255, 255, 255, 0.8);
+            font-size: 15px; 
+            background: rgba(255, 255, 255, 0.6);
         }
 
         button { 
             width: 100%; 
-            padding: 15px; 
+            padding: 12px; 
             background: #2c3e50; 
             color: white; 
             border: none; 
-            border-radius: 10px; 
-            font-size: 16px; 
+            border-radius: 8px; 
+            font-size: 15px; 
             font-weight: bold; 
             cursor: pointer; 
             margin-top: 10px; 
-            transition: 0.3s;
         }
 
-        button:hover { background: #1a252f; transform: scale(1.02); }
-
         .result { 
-            margin-top: 25px; 
-            padding: 20px; 
+            margin-top: 20px; 
+            padding: 15px; 
             background: #27ae60; 
             color: white; 
             border-radius: 12px; 
             text-align: center; 
-            box-shadow: 0 5px 15px rgba(39, 174, 96, 0.3);
         }
 
-        .highlight { font-weight: bold; color: white; display: block; }
+        .highlight { font-weight: bold; color: white; display: block; font-size: 22px; }
         
+        /* Tabel Juga Dibuat Lebih Kecil */
         .table-container { 
             width: 100%; 
-            max-width: 450px; 
-            background: rgba(255, 255, 255, 0.9); 
-            border-radius: 20px; 
+            max-width: 320px; 
+            background: rgba(255, 255, 255, 0.8); 
+            border-radius: 15px; 
             overflow: hidden; 
             display: none; 
             margin-top: 10px; 
             backdrop-filter: blur(10px);
         }
 
-        table { width: 100%; border-collapse: collapse; font-size: 14px; }
-        th { background: #2c3e50; color: white; padding: 15px; text-align: left; }
-        td { padding: 12px 15px; border-bottom: 1px solid #eee; color: #333; }
-        tr:nth-child(even) { background: rgba(0, 0, 0, 0.02); }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th { background: #2c3e50; color: white; padding: 10px; text-align: left; }
+        td { padding: 8px 10px; border-bottom: 1px solid #eee; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2>📈 Profit Calculator Pro</h2>
+    <h2>📊 Profit Calculator</h2>
     
     <div class="input-group">
         <label>Modal Awal (USD)</label>
@@ -121,11 +119,11 @@
         <input type="number" id="durasiBulan" value="12">
     </div>
 
-    <button onclick="hitung()">HITUNG PROYEKSI</button>
+    <button onclick="hitung()">HITUNG SEKARANG</button>
 
     <div class="result" id="resultBox" style="display:none;">
-        <span style="font-size: 14px; opacity: 0.9;">Total Saldo Akhir:</span>
-        <span id="totalAkhir" class="highlight" style="font-size: 28px; margin-top: 5px;"></span>
+        <span style="font-size: 12px; opacity: 0.9;">Estimasi Saldo Akhir:</span>
+        <span id="totalAkhir" class="highlight"></span>
     </div>
 </div>
 
@@ -135,7 +133,7 @@
             <tr>
                 <th>Bulan</th>
                 <th>Hari</th>
-                <th>Saldo Akhir</th>
+                <th>Saldo</th>
             </tr>
         </thead>
         <tbody id="tableBody"></tbody>
@@ -156,7 +154,7 @@
         for (let b = 1; b <= totalBulan; b++) {
             saldoSekarang = saldoSekarang * Math.pow((1 + rate), hPerBulan);
             let row = `<tr>
-                <td>Bulan ${b}</td>
+                <td>Bln ${b}</td>
                 <td>${b * hPerBulan}</td>
                 <td>$${saldoSekarang.toLocaleString('en-US', {maximumFractionDigits: 0})}</td>
             </tr>`;
@@ -166,7 +164,6 @@
         document.getElementById('totalAkhir').innerText = "$" + saldoSekarang.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         document.getElementById('resultBox').style.display = 'block';
         document.getElementById('tableContainer').style.display = 'block';
-        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 </script>
 
