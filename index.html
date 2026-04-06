@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kalkulator Compound Profit</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 20px; display: flex; flex-direction: column; align-items: center; }
         .card { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); width: 100%; max-width: 450px; margin-bottom: 20px; border-top: 8px solid #27ae60; }
         h2 { color: #2c3e50; text-align: center; margin-top: 0; font-size: 22px; }
         .input-group { margin-bottom: 15px; }
@@ -45,10 +45,15 @@
         <input type="number" id="hari" value="15">
     </div>
 
+    <div class="input-group">
+        <label>Durasi (Bulan)</label>
+        <input type="number" id="durasiBulan" value="12">
+    </div>
+
     <button onclick="hitung()">HITUNG PROYEKSI</button>
 
     <div class="result" id="resultBox" style="display:none;">
-        <span style="color: #7f8c8d; font-size: 14px;">Estimasi Saldo Akhir (12 Bulan):</span>
+        <span style="color: #7f8c8d; font-size: 14px;">Total Saldo Akhir:</span>
         <span id="totalAkhir" class="highlight" style="font-size: 28px; margin-top: 5px;"></span>
     </div>
 </div>
@@ -71,13 +76,14 @@
         let P = parseFloat(document.getElementById('modal').value);
         let rate = parseFloat(document.getElementById('profit').value) / 100;
         let hPerBulan = parseInt(document.getElementById('hari').value);
+        let totalBulan = parseInt(document.getElementById('durasiBulan').value);
         
         let tableBody = document.getElementById('tableBody');
         tableBody.innerHTML = ""; 
         
         let saldoSekarang = P;
 
-        for (let b = 1; b <= 12; b++) {
+        for (let b = 1; b <= totalBulan; b++) {
             saldoSekarang = saldoSekarang * Math.pow((1 + rate), hPerBulan);
             
             let row = `<tr>
@@ -93,7 +99,6 @@
         document.getElementById('resultBox').style.display = 'block';
         document.getElementById('tableContainer').style.display = 'block';
         
-        // Scroll otomatis ke hasil
         window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     }
 </script>
