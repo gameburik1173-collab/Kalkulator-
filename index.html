@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kalkulator Compound Profit</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .card { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); width: 100%; max-width: 450px; margin-bottom: 20px; border-top: 8px solid #27ae60; }
+        h2 { color: #2c3e50; text-align: center; margin-top: 0; font-size: 22px; }
+        .input-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 6px; font-weight: bold; color: #34495e; font-size: 14px; }
+        input { width: 100%; padding: 12px; border: 2px solid #ecf0f1; border-radius: 10px; box-sizing: border-box; font-size: 16px; transition: 0.3s; }
+        input:focus { border-color: #27ae60; outline: none; }
+        button { width: 100%; padding: 15px; background: #27ae60; color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; transition: 0.3s; }
+        button:hover { background: #219150; transform: translateY(-2px); }
+        .result { margin-top: 25px; padding: 20px; background: #ffffff; border-radius: 12px; border: 2px solid #e8f5e9; text-align: center; }
+        .highlight { font-weight: bold; color: #27ae60; display: block; }
+        
+        .table-container { width: 100%; max-width: 450px; background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); display: none; margin-top: 10px; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th { background: #2c3e50; color: white; padding: 15px; text-align: left; }
+        td { padding: 12px 15px; border-bottom: 1px solid #f1f1f1; }
+        tr:nth-child(even) { background: #fdfdfd; }
+        tr:last-child { background: #e8f5e9; font-weight: bold; color: #27ae60; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>📈 Profit Calculator</h2>
+    
+    <div class="input-group">
+        <label>Modal Awal (USD)</label>
+        <input type="number" id="modal" value="500">
+    </div>
+    
+    <div class="input-group">
+        <label>Profit Harian (%)</label>
+        <input type="number" id="profit" value="5">
+    </div>
+    
+    <div class="input-group">
+        <label>Hari Kerja / Bulan</label>
+        <input type="number" id="hari" value="15">
+    </div>
+
+    <button onclick="hitung()">HITUNG PROYEKSI</button>
+
+    <div class="result" id="resultBox" style="display:none;">
+        <span style="color: #7f8c8d; font-size: 14px;">Estimasi Saldo Akhir (12 Bulan):</span>
+        <span id="totalAkhir" class="highlight" style="font-size: 28px; margin-top: 5px;"></span>
+    </div>
+</div>
+
+<div id="tableContainer" class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>Bulan</th>
+                <th>Hari</th>
+                <th>Saldo Akhir</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+    </table>
+</div>
+
+<script>
+    function hitung() {
+        let P = parseFloat(document.getElementById('modal').value);
+        let rate = parseFloat(document.getElementById('profit').value) / 100;
+        let hPerBulan = parseInt(document.getElementById('hari').value);
+        
+        let tableBody = document.getElementById('tableBody');
+        tableBody.innerHTML = ""; 
+        
+        let saldoSekarang = P;
+
+        for (let b = 1; b <= 12; b++) {
+            saldoSekarang = saldoSekarang * Math.pow((1 + rate), hPerBulan);
+            
+            let row = `<tr>
+                <td>Bulan ${b}</td>
+                <td>${b * hPerBulan}</td>
+                <td>$${saldoSekarang.toLocaleString('en-US', {maximumFractionDigits: 0})}</td>
+            </tr>`;
+            tableBody.innerHTML += row;
+        }
+
+        document.getElementById('totalAkhir').innerText = "$" + saldoSekarang.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        
+        document.getElementById('resultBox').style.display = 'block';
+        document.getElementById('tableContainer').style.display = 'block';
+        
+        // Scroll otomatis ke hasil
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }
+</script>
+
+</body>
+</html>
