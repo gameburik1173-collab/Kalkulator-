@@ -3,117 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kalkulator Profit Angkasa</title>
+    <title>Profit & RR Analyzer</title>
     <style>
-        /* Elemen Dasar */
-        body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            font-family: 'Segoe UI', sans-serif;
-            overflow: hidden; /* Mencegah scroll double */
-        }
-
-        /* Layer Canvas Bintang */
-        #starfield {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: -1; /* Berada di belakang konten */
-            background-color: #000000; /* Hitam Angkasa */
-        }
-
-        /* Container Utama */
-        .main-container {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center; /* Kotak berada di tengah layar */
-            padding: 20px;
-            box-sizing: border-box;
-            z-index: 1; /* Di depan bintang */
-        }
-
-        /* Kotak Kalkulator Dibuat Lebih Kecil & Kaca */
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; font-family: 'Segoe UI', sans-serif; overflow-x: hidden; background: #000; }
+        #starfield { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; }
+        .main-container { padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; box-sizing: border-box; }
+        
         .card { 
-            background: rgba(255, 255, 255, 0.6); /* Transparan Efek Kaca */
-            backdrop-filter: blur(10px); /* Efek blur kaca */
-            -webkit-backdrop-filter: blur(10px);
-            padding: 20px; 
-            border-radius: 15px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3); 
-            width: 100%; 
-            max-width: 320px; /* Ramping sesuai permintaan */
+            background: rgba(255, 255, 255, 0.15); 
+            backdrop-filter: blur(15px); 
+            -webkit-backdrop-filter: blur(15px);
+            padding: 20px; border-radius: 20px; 
+            width: 100%; max-width: 340px; 
             border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white; margin-bottom: 20px;
         }
 
-        h2 { color: #000; text-align: center; margin-top: 0; font-size: 18px; margin-bottom: 20px; }
+        h2 { text-align: center; font-size: 18px; margin-top: 0; color: #fff; text-transform: uppercase; letter-spacing: 1px; }
         .input-group { margin-bottom: 12px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; color: #333; font-size: 13px; }
+        label { display: block; margin-bottom: 5px; font-size: 12px; color: #ccc; }
         
         input { 
-            width: 100%; 
-            padding: 10px; 
-            border: 1px solid rgba(0,0,0,0.2); 
-            border-radius: 8px; 
-            box-sizing: border-box; 
-            font-size: 15px; 
-            background: rgba(255, 255, 255, 0.5);
-            color: #000;
+            width: 100%; padding: 10px; border: 1px solid rgba(255,255,255,0.3); 
+            border-radius: 8px; box-sizing: border-box; font-size: 14px; 
+            background: rgba(0, 0, 0, 0.3); color: white;
         }
+
+        .flex-row { display: flex; gap: 10px; }
+        .flex-row .input-group { flex: 1; }
 
         button { 
-            width: 100%; 
-            padding: 12px; 
-            background: #27ae60; /* Hijau agar menonjol */
-            color: white; 
-            border: none; 
-            border-radius: 8px; 
-            font-size: 15px; 
-            font-weight: bold; 
-            cursor: pointer; 
-            margin-top: 10px; 
-            transition: 0.2s;
+            width: 100%; padding: 12px; background: #27ae60; color: white; 
+            border: none; border-radius: 8px; font-size: 14px; font-weight: bold; 
+            cursor: pointer; margin-top: 5px; transition: 0.3s;
         }
-
         button:hover { background: #2ecc71; transform: scale(1.02); }
+        button.alt { background: #2980b9; margin-top: 15px; }
 
-        .result { 
-            margin-top: 20px; 
-            padding: 15px; 
-            background: #27ae60; 
-            color: white; 
-            border-radius: 10px; 
-            text-align: center; 
+        .result-box { 
+            margin-top: 15px; padding: 15px; border-radius: 10px; 
+            text-align: center; display: none; animation: fadeIn 0.5s;
         }
+        .res-comp { background: rgba(39, 174, 96, 0.3); border: 1px solid #27ae60; }
+        .res-rr { background: rgba(41, 128, 185, 0.3); border: 1px solid #2980b9; }
 
-        .highlight { font-weight: bold; color: white; display: block; font-size: 22px; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         
-        /* Tabel Juga Dibuat Lebih Kecil & Kaca */
-        .table-container { 
-            width: 100%; 
-            max-width: 320px; 
-            background: rgba(255, 255, 255, 0.7); 
-            border-radius: 15px; 
-            overflow-y: auto; /* Bisa scroll jika panjang */
-            max-height: 200px; /* Tinggi maksimal tabel */
-            display: none; 
-            margin-top: 10px; 
-            backdrop-filter: blur(5px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+        .tab-btn { display: flex; width: 100%; max-width: 340px; margin-bottom: 15px; gap: 5px; }
+        .tab-btn div { 
+            flex: 1; text-align: center; padding: 10px; background: rgba(255,255,255,0.1); 
+            color: white; border-radius: 10px; cursor: pointer; font-size: 12px; 
         }
+        .tab-btn div.active { background: rgba(255,255,255,0.3); font-weight: bold; border: 1px solid white; }
 
-        table { width: 100%; border-collapse: collapse; font-size: 12px; }
-        th { background: rgba(0,0,0,0.7); color: white; padding: 10px; text-align: left; position: sticky; top: 0; }
-        td { padding: 8px 10px; border-bottom: 1px solid rgba(0,0,0,0.1); color: #000; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px; color: white; }
+        th { background: rgba(0,0,0,0.5); padding: 8px; text-align: left; }
+        td { padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.1); }
     </style>
 </head>
 <body>
@@ -121,128 +66,140 @@
 <canvas id="starfield"></canvas>
 
 <div class="main-container">
-    <div class="card">
-        <h2>📊 Profit Calculator</h2>
-        
+    <div class="tab-btn">
+        <div id="btn1" class="active" onclick="showTab(1)">COMPOUND</div>
+        <div id="btn2" onclick="showTab(2)">ANALISA RR</div>
+    </div>
+
+    <!-- TAB 1: COMPOUND PROFIT -->
+    <div id="tabCompound" class="card">
+        <h2>Compound Profit</h2>
         <div class="input-group">
-            <label>Modal Awal (USD)</label>
+            <label>Modal Awal ($)</label>
             <input type="number" id="modal" value="500">
         </div>
-        
-        <div class="input-group">
-            <label>Profit Harian (%)</label>
-            <input type="number" id="profit" value="5">
+        <div class="flex-row">
+            <div class="input-group">
+                <label>Profit/Hari (%)</label>
+                <input type="number" id="profit" value="5">
+            </div>
+            <div class="input-group">
+                <label>Hari Kerja/Bln</label>
+                <input type="number" id="hari" value="15">
+            </div>
         </div>
-        
-        <div class="input-group">
-            <label>Hari Kerja / Bulan</label>
-            <input type="number" id="hari" value="15">
-        </div>
-
         <div class="input-group">
             <label>Durasi (Bulan)</label>
-            <input type="number" id="durasiBulan" value="12">
+            <input type="number" id="durasi" value="12">
         </div>
-
-        <button onclick="hitung()">HITUNG SEKARANG</button>
-
-        <div class="result" id="resultBox" style="display:none;">
-            <span style="font-size: 12px; opacity: 0.9;">Estimasi Saldo Akhir:</span>
-            <span id="totalAkhir" class="highlight"></span>
+        <button onclick="hitungCompound()">HITUNG COMPOUND</button>
+        <div id="resCompound" class="result-box res-comp">
+            <span id="textTotal" style="font-size: 20px; font-weight: bold;"></span>
         </div>
     </div>
 
-    <div id="tableContainer" class="table-container">
-        <table>
-            <thead>
-                <tr>
-                    <th>Bulan</th>
-                    <th>Hari</th>
-                    <th>Saldo</th>
-                </tr>
-            </thead>
-            <tbody id="tableBody"></tbody>
-        </table>
+    <!-- TAB 2: ANALISA RR -->
+    <div id="tabRR" class="card" style="display:none;">
+        <h2>Analisa RR & Win Rate</h2>
+        <div class="input-group">
+            <label>Resiko per Trade ($)</label>
+            <input type="number" id="riskAmount" value="10">
+        </div>
+        <div class="flex-row">
+            <div class="input-group">
+                <label>Risk (R)</label>
+                <input type="number" id="ratioR" value="1" readonly>
+            </div>
+            <div class="input-group">
+                <label>Reward (R)</label>
+                <input type="number" id="ratioReward" value="2">
+            </div>
+        </div>
+        <div class="input-group">
+            <label>Win Rate (%)</label>
+            <input type="number" id="winRate" value="50">
+        </div>
+        <div class="input-group">
+            <label>Total Trade</label>
+            <input type="number" id="totalTrades" value="20">
+        </div>
+        <button class="alt" onclick="hitungRR()">ANALISA KEUNTUNGAN</button>
+        <div id="resRR" class="result-box res-rr">
+            <div id="rrSummary" style="font-size: 14px; line-height: 1.6;"></div>
+        </div>
+    </div>
+
+    <div id="tableContainer" class="card" style="display:none; background: rgba(0,0,0,0.5);">
+        <table id="dataTable"></table>
     </div>
 </div>
 
 <script>
-    // --- SKRIP BACKGROUND BINTANG (STARFIELD) ---
+    // --- STARFIELD BACKGROUND ---
     const canvas = document.getElementById('starfield');
     const ctx = canvas.getContext('2d');
-
-    // Menyesuaikan ukuran canvas ke layar penuh
-    function resizeCanvas() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-    }
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-
-    // Konfigurasi Bintang
-    const stars = [];
-    const numStars = Math.floor((canvas.width * canvas.height) / 1000); // Jumlah bintang proporsional layar
-
-    for (let i = 0; i < numStars; i++) {
-        stars.push({
-            x: Math.random() * canvas.width,
-            y: Math.random() * canvas.height,
-            size: Math.random() * 1.5, // Ukuran bintang
-            speed: Math.random() * 0.3 + 0.1 // Kecepatan bergerak
-        });
-    }
-
-    // Fungsi Animasi Bintang
-    function drawStars() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height); // Bersihkan canvas
-
-        for (let star of stars) {
-            ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.5 + 0.5})`; // Efek berkedip lembut
-            ctx.fillRect(star.x, star.y, star.size, star.size);
-
-            // Gerakkan bintang ke bawah
-            star.y += star.speed;
-
-            // Jika bintang keluar dari bawah, reset ke atas
-            if (star.y > canvas.height) {
-                star.y = 0;
-                star.x = Math.random() * canvas.width;
-            }
-        }
-    }
-
-    // Jalankan Loop Animasi
+    let stars = [];
+    function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+    window.onresize = resize; resize();
+    for(let i=0; i<200; i++) stars.push({x: Math.random()*canvas.width, y: Math.random()*canvas.height, s: Math.random()*2, v: Math.random()*0.5+0.1});
     function animate() {
-        drawStars();
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.fillStyle = "white";
+        stars.forEach(st => {
+            ctx.fillRect(st.x, st.y, st.s, st.s);
+            st.y += st.v; if(st.y > canvas.height) st.y = 0;
+        });
         requestAnimationFrame(animate);
     }
     animate();
 
+    // --- TAB SYSTEM ---
+    function showTab(n) {
+        document.getElementById('tabCompound').style.display = n==1 ? 'block' : 'none';
+        document.getElementById('tabRR').style.display = n==2 ? 'block' : 'none';
+        document.getElementById('btn1').className = n==1 ? 'active' : '';
+        document.getElementById('btn2').className = n==2 ? 'active' : '';
+        document.getElementById('tableContainer').style.display = 'none';
+    }
 
-    // --- SKRIP KALKULATOR ---
-    function hitung() {
-        let P = parseFloat(document.getElementById('modal').value);
-        let rate = parseFloat(document.getElementById('profit').value) / 100;
-        let hPerBulan = parseInt(document.getElementById('hari').value);
-        let totalBulan = parseInt(document.getElementById('durasiBulan').value);
+    // --- LOGIC COMPOUND ---
+    function hitungCompound() {
+        let modal = parseFloat(document.getElementById('modal').value);
+        let rate = parseFloat(document.getElementById('profit').value)/100;
+        let hari = parseInt(document.getElementById('hari').value);
+        let bulan = parseInt(document.getElementById('durasi').value);
+        let table = document.getElementById('dataTable');
+        table.innerHTML = "<tr><th>Bulan</th><th>Saldo</th></tr>";
         
-        let tableBody = document.getElementById('tableBody');
-        tableBody.innerHTML = ""; 
-        let saldoSekarang = P;
-
-        for (let b = 1; b <= totalBulan; b++) {
-            saldoSekarang = saldoSekarang * Math.pow((1 + rate), hPerBulan);
-            let row = `<tr>
-                <td>Bln ${b}</td>
-                <td>${b * hPerBulan}</td>
-                <td>$${saldoSekarang.toLocaleString('en-US', {maximumFractionDigits: 0})}</td>
-            </tr>`;
-            tableBody.innerHTML += row;
+        let current = modal;
+        for(let i=1; i<=bulan; i++) {
+            current *= Math.pow((1+rate), hari);
+            table.innerHTML += `<tr><td>Bulan ${i}</td><td>$${current.toLocaleString('en-US',{maximumFractionDigits:0})}</td></tr>`;
         }
-
-        document.getElementById('totalAkhir').innerText = "$" + saldoSekarang.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-        document.getElementById('resultBox').style.display = 'block';
+        document.getElementById('textTotal').innerText = "$" + current.toLocaleString('en-US',{maximumFractionDigits:2});
+        document.getElementById('resCompound').style.display = 'block';
         document.getElementById('tableContainer').style.display = 'block';
+    }
+
+    // --- LOGIC RR ANALYZER ---
+    function hitungRR() {
+        let risk = parseFloat(document.getElementById('riskAmount').value);
+        let rewardRatio = parseFloat(document.getElementById('ratioReward').value);
+        let wr = parseFloat(document.getElementById('winRate').value)/100;
+        let trades = parseInt(document.getElementById('totalTrades').value);
+        
+        let wins = Math.round(trades * wr);
+        let loss = trades - wins;
+        let profit = (wins * risk * rewardRatio) - (loss * risk);
+        
+        let summary = document.getElementById('rrSummary');
+        summary.innerHTML = `
+            <b>Hasil Akhir: <span style="color:${profit>=0?'#2ecc71':'#e74c3c'}">$${profit.toLocaleString()}</span></b><br>
+            Win: ${wins} kali | Loss: ${loss} kali<br>
+            <small>Ekspektansi per trade:$${(profit/trades).toFixed(2)}</small>
+        `;
+        document.getElementById('resRR').style.display = 'block';
+        document.getElementById('tableContainer').style.display = 'none';
     }
 </script>
 
