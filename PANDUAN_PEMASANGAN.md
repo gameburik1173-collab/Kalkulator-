@@ -1,49 +1,54 @@
-# PANDUAN PEMASANGAN - Advanced Trading Bot
-
-## Daftar File Yang Harus Anda Miliki
-
-```
-📁 Trading_Bot/
-├── config.py              # Konfigurasi utama
-├── ambil_data.py          # Handler data multi-timeframe
-├── strategi.py            # Strategi trading (Breakout+Pullback, QM, RBR/DBD)
-├── money_management.py    # Manajemen lot & risiko
-├── self_learning.py       # Self-learning & adaptif
-├── ai_agent.py            # Mesin keputusan AI
-├── trading_bot.py         # Bot utama (main file)
-├── trade_history.json     # (Auto-dibuat saat pertama kali jalan)
-└── learning_data.json     # (Auto-dibuat saat pertama kali jalan)
-```
+# PANDUAN PEMASANGAN LENGKAP
+## Advanced AI Trading Bot (XAUUSD)
 
 ---
 
-## LANGKAH 1: Persiapan Sistem
+## 📥 LANGKAH 1: Download File dari GitHub
 
-### Kebutuhan:
-- **Windows 10/11** (MetaTrader5 hanya berjalan di Windows)
-- **Python 3.8+** (disarankan 3.10 atau 3.11)
-- **MetaTrader 5** terinstall dan login ke broker
-
-### Install Python (jika belum):
-1. Download dari https://www.python.org/downloads/
-2. Saat install, **centang "Add Python to PATH"**
-3. Klik Install
-
----
-
-## LANGKAH 2: Buat Folder Project
-
+### Cara A - Menggunakan Git (Disarankan):
 ```bash
-# Buka Command Prompt (CMD) atau PowerShell
-mkdir C:\Trading_Bot
-cd C:\Trading_Bot
+git clone https://github.com/gameburik1173-collab/Kalkulator-.git
+cd Kalkulator-
+```
+
+### Cara B - Download Manual:
+1. Buka: `https://github.com/gameburik1173-collab/Kalkulator-`
+2. Klik tombol hijau **"Code"**
+3. Pilih **"Download ZIP"**
+4. Extract ZIP ke folder pilihan Anda, misalnya `C:\Trading_Bot\`
+
+### File yang Akan Anda Dapatkan:
+```
+📁 Kalkulator-/
+├── config.py              ← Konfigurasi utama (EDIT INI DULU)
+├── ambil_data.py          ← Ambil data M1/M3/M5/M15
+├── strategi.py            ← Strategi: Breakout+Pullback, QM, RBR/DBD
+├── money_management.py    ← Lot sizing dinamis (1-2% risk)
+├── self_learning.py       ← Self-learning & adaptasi
+├── ai_agent.py            ← Mesin keputusan AI
+├── trading_bot.py         ← Main bot (file utama yang dijalankan)
+├── PANDUAN_PEMASANGAN.md  ← File ini
+└── index.html             ← Compound calculator (bonus)
 ```
 
 ---
 
-## LANGKAH 3: Install Library Python
+## 💻 LANGKAH 2: Install Python
 
-Buka CMD/PowerShell lalu jalankan:
+1. Download Python dari: https://www.python.org/downloads/
+2. **PENTING:** Saat install, centang ✅ **"Add Python to PATH"**
+3. Klik "Install Now"
+4. Verifikasi di CMD:
+```bash
+python --version
+```
+Harus muncul: `Python 3.10.x` atau lebih tinggi
+
+---
+
+## 📦 LANGKAH 3: Install Library yang Dibutuhkan
+
+Buka **Command Prompt** (CMD) atau **PowerShell**, lalu jalankan:
 
 ```bash
 pip install MetaTrader5
@@ -51,122 +56,100 @@ pip install pandas
 pip install numpy
 ```
 
-Atau buat file `requirements.txt` dengan isi:
-```
-MetaTrader5>=5.0.45
-pandas>=1.5.0
-numpy>=1.23.0
+Atau jalankan sekaligus:
+```bash
+pip install MetaTrader5 pandas numpy
 ```
 
-Lalu jalankan:
+### Verifikasi Instalasi:
 ```bash
-pip install -r requirements.txt
+python -c "import MetaTrader5; import pandas; import numpy; print('Semua library OK!')"
 ```
 
 ---
 
-## LANGKAH 4: Download/Salin Semua File
+## 📊 LANGKAH 4: Install & Setup MetaTrader 5
 
-### Cara Mendapatkan File:
-
-**Opsi A - Dari GitHub (jika sudah di-push):**
-```bash
-git clone https://github.com/gameburik1173-collab/Kalkulator-.git
-cd Kalkulator-
-```
-
-**Opsi B - Salin Manual:**
-Salin ke-7 file Python ke folder `C:\Trading_Bot\`:
-- `config.py`
-- `ambil_data.py`
-- `strategi.py`
-- `money_management.py`
-- `self_learning.py`
-- `ai_agent.py`
-- `trading_bot.py`
+1. Download MT5 dari broker Anda (Exness, XM, FBS, OctaFX, dll)
+2. Install dan **login** ke akun trading
+3. Pastikan chart **XAUUSD** terbuka
+4. Aktifkan Algo Trading:
+   - Menu: **Tools → Options → Expert Advisors**
+   - Centang: ✅ "Allow algorithmic trading"
+   - Centang: ✅ "Allow DLL imports"
+   - Klik OK
+5. Di toolbar atas, pastikan tombol **"Algo Trading"** berwarna **hijau**
 
 ---
 
-## LANGKAH 5: Konfigurasi Broker (PENTING!)
+## ⚙️ LANGKAH 5: Edit Konfigurasi (WAJIB!)
 
-Buka file `config.py` dan edit bagian berikut:
+Buka file **`config.py`** dengan Notepad atau text editor, lalu edit:
 
 ```python
 BROKER_CONFIG = {
-    "server": "NamaServerBrokerAnda",  # Contoh: "Exness-MT5Real"
-    "login": 12345678,                  # Nomor akun MT5 Anda
-    "password": "password_anda",        # Password MT5
-    "symbol": "XAUUSD",                 # Pair yang mau ditrade
+    "server": "Exness-MT5Real",    # ← Ganti dengan server broker Anda
+    "login": 12345678,              # ← Ganti dengan nomor akun MT5
+    "password": "YourPassword",     # ← Ganti dengan password MT5
+    "symbol": "XAUUSD",            # ← Pair yang mau ditrade
     "magic_number": 202501,
 }
 ```
 
 ### Cara Cari Nama Server:
 1. Buka MetaTrader 5
-2. Klik kanan pada akun di Navigator → "Properties"
-3. Lihat field "Server"
+2. Klik menu **File → Login to Trade Account**
+3. Lihat field **"Server"** — itulah nama yang harus Anda masukkan
 
-### Symbol yang Didukung:
-- `XAUUSD` atau `GOLD` (Gold)
-- `EURUSD`, `GBPUSD`, dll (Forex)
-- Sesuaikan dengan nama symbol di broker Anda
-
----
-
-## LANGKAH 6: Pastikan MetaTrader 5 Terbuka
-
-**PENTING:** MetaTrader 5 HARUS terbuka dan login sebelum menjalankan bot!
-
-1. Buka MetaTrader 5
-2. Login ke akun trading Anda
-3. Pastikan chart XAUUSD (atau pair pilihan) terbuka
-4. Pastikan "Algo Trading" aktif (tombol hijau di toolbar)
-
-### Aktifkan Algo Trading:
-- Menu: Tools → Options → Expert Advisors
-- Centang: "Allow algorithmic trading"
-- Centang: "Allow DLL imports"
+### Contoh Nama Server per Broker:
+| Broker | Server |
+|--------|--------|
+| Exness | `Exness-MT5Real` atau `Exness-MT5Real2` |
+| XM | `XMGlobal-MT5` |
+| FBS | `FBS-Real` |
+| OctaFX | `OctaFX-MT5` |
+| ICMarkets | `ICMarketsSC-MT5` |
 
 ---
 
-## LANGKAH 7: Jalankan Bot
+## 🚀 LANGKAH 6: Jalankan Bot
 
 Buka CMD/PowerShell, masuk ke folder project:
 
 ```bash
-cd C:\Trading_Bot
+cd C:\Trading_Bot\Kalkulator-
 ```
 
-### Mode Live Trading:
+### ▶️ Mode Live Trading (bot berjalan terus):
 ```bash
 python trading_bot.py
 ```
 
-### Mode Cek Status:
-```bash
-python trading_bot.py --status
-```
-
-### Mode Lihat Report:
-```bash
-python trading_bot.py --report
-```
-
-### Mode Single Analysis (test tanpa eksekusi):
+### 🔍 Mode Test Analisis (1x analisis tanpa eksekusi):
 ```bash
 python trading_bot.py --analyze
 ```
 
-### Bantuan:
+### 📊 Mode Lihat Status:
+```bash
+python trading_bot.py --status
+```
+
+### 📈 Mode Lihat Report Performa:
+```bash
+python trading_bot.py --report
+```
+
+### ❓ Bantuan:
 ```bash
 python trading_bot.py --help
 ```
 
 ---
 
-## LANGKAH 8: Verifikasi Bot Berjalan
+## ✅ LANGKAH 7: Verifikasi Bot Berjalan
 
-Jika berhasil, Anda akan melihat output seperti:
+Jika berhasil, Anda akan melihat output seperti ini:
 
 ```
 ======================================================================
@@ -180,20 +163,29 @@ Jika berhasil, Anda akan melihat output seperti:
   Max Daily Trades: 5
   Analysis Interval: 30s
 ======================================================================
+AI Agent initialized successfully
 Bot is now running. Press Ctrl+C to stop.
 ```
 
 ---
 
-## LANGKAH 9: Konfigurasi Telegram (Opsional)
+## 📱 LANGKAH 8: Setup Notifikasi Telegram (Opsional)
 
-Jika ingin notifikasi via Telegram:
+Jika ingin dapat notifikasi di HP saat ada trade:
 
-1. Buat bot Telegram melalui @BotFather
-2. Dapatkan token bot
-3. Dapatkan chat_id Anda (kirim pesan ke bot, lalu cek di `https://api.telegram.org/bot<TOKEN>/getUpdates`)
-4. Edit `config.py`:
+### A. Buat Bot Telegram:
+1. Buka Telegram, cari **@BotFather**
+2. Ketik `/newbot`
+3. Beri nama bot (contoh: "Trading Bot Saya")
+4. Beri username (contoh: `mytradingbot_123_bot`)
+5. Catat **TOKEN** yang diberikan
 
+### B. Dapatkan Chat ID:
+1. Kirim pesan apapun ke bot yang baru dibuat
+2. Buka browser: `https://api.telegram.org/bot<TOKEN>/getUpdates`
+3. Cari field `"chat":{"id": 123456789}` — itu **Chat ID** Anda
+
+### C. Edit `config.py`:
 ```python
 NOTIFICATION_CONFIG = {
     "telegram_enabled": True,
@@ -208,73 +200,92 @@ NOTIFICATION_CONFIG = {
 
 ---
 
-## Tips Penting
+## ⚠️ TIPS PENTING
 
-### Mulai dengan Akun Demo!
-- **JANGAN langsung pakai akun real**
-- Test minimal 2-4 minggu di demo
-- Pastikan winrate > 50% sebelum live
+### 🔴 GUNAKAN AKUN DEMO DULU!
+- Jangan langsung pakai uang real
+- Test minimal **2-4 minggu** di akun demo
+- Pastikan hasilnya positif baru pindah ke real
 
-### Risk Management:
-- Default risk 1.5% per trade (aman)
-- Max 5 trades per hari
-- Max drawdown 5% lalu bot berhenti otomatis
+### 🟡 Risk Management:
+- Default: 1.5% risk per trade (sangat aman)
+- Maksimal 5 trade per hari
+- Bot berhenti otomatis jika drawdown > 5%
 
-### Self-Learning:
-- Bot akan menyimpan semua trade di `trade_history.json`
-- Setelah 20+ trades, bot mulai menyesuaikan strategi
-- Semakin banyak data, semakin pintar bot
+### 🟢 Self-Learning:
+- Bot menyimpan semua trade di `trade_history.json`
+- Setelah **20+ trade**, bot mulai belajar dan menyesuaikan
+- Semakin banyak data, semakin pintar keputusannya
 
-### Menghentikan Bot:
-- Tekan `Ctrl+C` di terminal
-- Bot akan shutdown dengan aman
-
----
-
-## Troubleshooting
-
-| Masalah | Solusi |
-|---------|--------|
-| "MetaTrader5 not installed" | `pip install MetaTrader5` |
-| "MT5 initialization failed" | Pastikan MT5 terbuka dan login |
-| "MT5 login failed" | Cek server, login, password di config.py |
-| "No data received" | Pastikan symbol benar dan chart terbuka di MT5 |
-| "Insufficient free margin" | Balance terlalu kecil untuk lot minimum |
-| Bot tidak buka trade | Normal! Bot hanya trade saat semua kondisi terpenuhi |
+### 🔵 Cara Menghentikan Bot:
+- Tekan **Ctrl+C** di terminal
+- Bot akan shutdown dengan aman (tidak akan menutup trade yang sedang berjalan)
 
 ---
 
-## Struktur Kerja Bot
+## 🔧 TROUBLESHOOTING (Solusi Masalah)
+
+| Masalah | Penyebab | Solusi |
+|---------|----------|--------|
+| `ModuleNotFoundError: MetaTrader5` | Library belum diinstall | `pip install MetaTrader5` |
+| `MT5 initialization failed` | MT5 belum dibuka | Buka MT5 dan login dulu |
+| `MT5 login failed` | Server/login/password salah | Cek ulang config.py |
+| `No data received for M5` | Symbol salah atau chart belum dibuka | Buka chart XAUUSD di MT5 |
+| `Daily trade limit reached` | Sudah 5 trade hari ini | Normal, tunggu besok |
+| `Max drawdown reached` | Loss berturut-turut | Bot istirahat otomatis, evaluasi strategi |
+| Bot jalan tapi tidak trade | Belum ada sinyal valid | Normal! Bot hanya trade saat semua kondisi terpenuhi |
+| `pip not recognized` | Python PATH belum diset | Reinstall Python, centang "Add to PATH" |
+
+---
+
+## 📋 CARA KERJA BOT (Ringkasan)
 
 ```
-Setiap 30 detik:
-1. Ambil data M15, M5, M3, M1
-2. Analisis trend M15 (EMA 20/50/200, swing points)
-3. Cari sinyal M5:
-   - Breakout + Pullback di SR level
-   - QM Pattern (Quasimodo)
-4. Konfirmasi M1/M3:
-   - RBR (Rally-Base-Rally) untuk BUY
-   - DBD (Drop-Base-Drop) untuk SELL
-5. Scoring AI (confidence 0-1):
-   - Confluence × 25%
-   - MTF Alignment × 20%
-   - Market Fit × 15%
-   - Self-Learning × 20%
-   - RR Quality × 10%
-   - Session × 10%
-6. Jika confidence > threshold → EXECUTE TRADE
-7. Money management: hitung lot berdasar SL distance
-8. Trailing stop & breakeven otomatis
-9. Catat hasil → update learning
+┌─────────────────────────────────────────────────┐
+│          SETIAP 30 DETIK BOT MELAKUKAN:         │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│  1. Ambil data candle M15, M5, M3, M1          │
+│                    ↓                            │
+│  2. Analisis TREND di M15                       │
+│     (EMA 20/50/200, Swing High/Low)            │
+│                    ↓                            │
+│  3. Cari SINYAL di M5:                         │
+│     • Breakout + Pullback                      │
+│     • QM Pattern (Quasimodo)                   │
+│                    ↓                            │
+│  4. KONFIRMASI di M1/M3:                       │
+│     • RBR (Rally-Base-Rally) → BUY             │
+│     • DBD (Drop-Base-Drop) → SELL              │
+│                    ↓                            │
+│  5. AI SCORING (confidence 0-1):               │
+│     • Confluence       25%                     │
+│     • MTF Alignment    20%                     │
+│     • Self-Learning    20%                     │
+│     • Market Fit       15%                     │
+│     • RR Quality       10%                     │
+│     • Session          10%                     │
+│                    ↓                            │
+│  6. Jika confidence > threshold:               │
+│     → HITUNG LOT (1-2% risk)                   │
+│     → EXECUTE TRADE                            │
+│                    ↓                            │
+│  7. MANAGE TRADE:                              │
+│     • Breakeven setelah +20 pips               │
+│     • Trailing stop setelah +30 pips           │
+│                    ↓                            │
+│  8. CATAT HASIL → UPDATE LEARNING              │
+│                                                 │
+└─────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Kontak & Support
+## 📞 BANTUAN
 
-Jika ada pertanyaan atau masalah, silakan buat Issue di repository GitHub.
+Jika ada masalah atau pertanyaan:
+- Buat **Issue** di GitHub: `https://github.com/gameburik1173-collab/Kalkulator-/issues`
 
 ---
 
-*Bot ini untuk tujuan edukasi. Trading mengandung risiko tinggi. Selalu gunakan akun demo terlebih dahulu.*
+*⚠️ DISCLAIMER: Bot ini untuk tujuan edukasi. Trading mengandung risiko tinggi kehilangan modal. Selalu gunakan akun demo terlebih dahulu dan jangan investasikan uang yang tidak siap Anda kehilangan.*
