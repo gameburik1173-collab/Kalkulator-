@@ -8,9 +8,9 @@ Multi-timeframe analysis with Breakout+Pullback & QM Pattern
 
 # ===================== BROKER & ACCOUNT =====================
 BROKER_CONFIG = {
-    "server": "YOUR_BROKER_SERVER",
-    "login": 0,          # MT5 account number
-    "password": "",      # MT5 password
+    "server": "Exness-MT5Trial6",
+    "login": 413762057,          # MT5 account number
+    "password": "Jeybotai07.",      # MT5 password
     "symbol": "XAUUSD",  # Trading pair
     "magic_number": 202501,
 }
@@ -82,8 +82,8 @@ RISK_CONFIG = {
     "sl_max_pips": 60,               # Maximum SL distance
     "rr_minimum": 2.0,               # Minimum Risk:Reward ratio
     "rr_target": 3.0,                # Target Risk:Reward ratio
-    "max_trades_per_day": 5,         # Max trades per hari
-    "max_drawdown_percent": 5.0,     # Max drawdown sebelum stop
+    "max_trades_per_day": 10,         # Max trades per hari
+    "max_drawdown_percent": 8.0,     # Max drawdown sebelum stop
     "trailing_stop_activate_pips": 30,  # Activate trailing setelah X pips profit
     "trailing_stop_distance_pips": 15,  # Trailing stop distance
     "breakeven_activate_pips": 20,   # Move SL to breakeven setelah X pips
@@ -160,9 +160,9 @@ LOG_CONFIG = {
 
 # ===================== NOTIFICATIONS =====================
 NOTIFICATION_CONFIG = {
-    "telegram_enabled": False,
-    "telegram_token": "",
-    "telegram_chat_id": "",
+    "telegram_enabled": True,
+    "telegram_token": "8788240924:AAHbr9WRkj2Q32rfMkzF7NaXRZO_VUysKo4",
+    "telegram_chat_id": "7957682350",
     "notify_on_trade": True,
     "notify_on_signal": True,
     "notify_on_error": True,
