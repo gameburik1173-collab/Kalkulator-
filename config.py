@@ -162,7 +162,7 @@ LOG_CONFIG = {
 NOTIFICATION_CONFIG = {
     "telegram_enabled": True,
     "telegram_token": "",
-    "telegram_chat_id": "7957682350",
+    "telegram_chat_id": "",
     "notify_on_trade": True,
     "notify_on_signal": True,
     "notify_on_error": True,
