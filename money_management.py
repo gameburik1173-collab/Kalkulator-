@@ -153,8 +153,8 @@ class MoneyManager:
 
     def _get_pip_size(self):
         """Get pip size for the trading symbol."""
-        symbol = BROKER_CONFIG['symbol']
-        if symbol in ["XAUUSD", "GOLD"]:
+        symbol = BROKER_CONFIG['symbol'].upper()
+        if "XAUUSD" in symbol or "GOLD" in symbol:
             return 0.1  # Gold: 1 pip = $0.1 movement
         elif "JPY" in symbol:
             return 0.01
@@ -186,9 +186,9 @@ class MoneyManager:
                 logger.warning(f"MT5 pip value calculation failed: {e}")
 
         # Fallback estimates
-        if symbol in ["XAUUSD", "GOLD"]:
+        if "XAUUSD" in symbol.upper() or "GOLD" in symbol.upper():
             return 10.0   # $10 per pip per standard lot
-        elif "JPY" in symbol:
+        elif "JPY" in symbol.upper():
             return 10.0   # Approximately
         else:
             return 10.0   # Standard for major pairs

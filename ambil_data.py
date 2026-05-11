@@ -411,9 +411,261 @@ class DataHandler:
 
     def _get_pip_value(self):
         """Get pip value for the symbol."""
-        if self.symbol in ["XAUUSD", "GOLD"]:
-            return 0.1  # Gold: 1 pip = 0.1
-        elif "JPY" in self.symbol:
+        symbol_upper = self.symbol.upper()
+        if "XAUUSD" in symbol_upper or "GOLD" in symbol_upper:
+            return 0.1  # Gold: 1 pip = 0.1 (termasuk XAUUSDm, XAUUSD., dll)
+        elif "JPY" in symbol_upper:
             return 0.01
         else:
             return 0.0001  # Standard forex pairs
+
+
+    # ===================== SWING POINTS =====================
+    def find_swing_points(self, timeframe="M5"):
+        """
+        Find swing highs and swing lows for pattern detection.
+        Used by QM pattern detector.
+        """
+        df = self.data.get(timeframe)
+        if df is None or df.empty:
+            return []
+
+        lookback = 5
+        swings = []
+
+        for i in range(lookback, len(df) - lookback):
+            # Swing High
+            is_swing_high = all(
+                df['high'].iloc[i] > df['high'].iloc[i - j] and
+                df['high'].iloc[i] > df['high'].iloc[i + j]
+                for j in range(1, lookback + 1)
+            )
+
+            # Swing Low
+            is_swing_low = all(
+                df['low'].iloc[i] < df['low'].iloc[i - j] and
+                df['low'].iloc[i] < df['low'].iloc[i + j]
+                for j in range(1, lookback + 1)
+            )
+
+            if is_swing_high:
+                swings.append({
+                    'type': 'high',
+                    'price': df['high'].iloc[i],
+                    'time': df.index[i],
+                    'index': i,
+                })
+
+            if is_swing_low:
+                swings.append({
+                    'type': 'low',
+                    'price': df['low'].iloc[i],
+                    'time': df.index[i],
+                    'index': i,
+                })
+
+        # Sort by index
+        swings.sort(key=lambda x: x['index'])
+        self.swing_points = swings
+        return swings
+
+    # ===================== TREND ANALYSIS =====================
+    def get_trend_direction(self, timeframe="M15"):
+        """
+        Determine trend direction on specified timeframe.
+
+        Returns:
+            dict: {
+                'direction': 'bullish' | 'bearish' | 'neutral',
+                'strength': 0.0 - 1.0,
+                'ema_position': 'above' | 'below',
+                'higher_highs': bool,
+                'higher_lows': bool
+            }
+        """
+        df = self.data.get(timeframe)
+        if df is None or df.empty:
+            return {'direction': 'neutral', 'strength': 0}
+
+        indicators = self.indicators.get(timeframe, {})
+        current_close = df['close'].iloc[-1]
+
+        # EMA position
+        ema_fast = indicators.get('ema_fast')
+        ema_slow = indicators.get('ema_slow')
+        ema_200 = indicators.get('ema_200')
+
+        ema_bullish = False
+        ema_bearish = False
+
+        if ema_fast is not None and ema_slow is not None:
+            ema_bullish = (
+                ema_fast.iloc[-1] > ema_slow.iloc[-1] and
+                current_close > ema_fast.iloc[-1]
+            )
+            ema_bearish = (
+                ema_fast.iloc[-1] < ema_slow.iloc[-1] and
+                current_close < ema_fast.iloc[-1]
+            )
+
+        above_200 = current_close > ema_200.iloc[-1] if ema_200 is not None and len(ema_200) > 0 else None
+
+        # Higher Highs / Higher Lows check
+        swings = self.find_swing_points(timeframe)
+        recent_highs = [s for s in swings[-10:] if s['type'] == 'high']
+        recent_lows = [s for s in swings[-10:] if s['type'] == 'low']
+
+        higher_highs = False
+        higher_lows = False
+        lower_highs = False
+        lower_lows = False
+
+        if len(recent_highs) >= 2:
+            higher_highs = recent_highs[-1]['price'] > recent_highs[-2]['price']
+            lower_highs = recent_highs[-1]['price'] < recent_highs[-2]['price']
+
+        if len(recent_lows) >= 2:
+            higher_lows = recent_lows[-1]['price'] > recent_lows[-2]['price']
+            lower_lows = recent_lows[-1]['price'] < recent_lows[-2]['price']
+
+        # Determine direction
+        bullish_score = 0
+        bearish_score = 0
+
+        if ema_bullish:
+            bullish_score += 1
+        if ema_bearish:
+            bearish_score += 1
+        if above_200:
+            bullish_score += 1
+        elif above_200 is False:
+            bearish_score += 1
+        if higher_highs:
+            bullish_score += 1
+        if higher_lows:
+            bullish_score += 1
+        if lower_highs:
+            bearish_score += 1
+        if lower_lows:
+            bearish_score += 1
+
+        # Get trend strength from ADX
+        trend_str = indicators.get('trend_strength')
+        strength = trend_str.iloc[-1] if trend_str is not None and len(trend_str) > 0 else 0.5
+
+        if bullish_score > bearish_score:
+            direction = 'bullish'
+        elif bearish_score > bullish_score:
+            direction = 'bearish'
+        else:
+            direction = 'neutral'
+
+        return {
+            'direction': direction,
+            'strength': float(strength) if not np.isnan(strength) else 0.5,
+            'ema_position': 'above' if ema_bullish else ('below' if ema_bearish else 'neutral'),
+            'higher_highs': higher_highs,
+            'higher_lows': higher_lows,
+            'lower_highs': lower_highs,
+            'lower_lows': lower_lows,
+            'above_ema200': above_200,
+            'bullish_score': bullish_score,
+            'bearish_score': bearish_score,
+        }
+
+    # ===================== MARKET CONDITIONS =====================
+    def get_market_condition(self, timeframe="M5"):
+        """
+        Analyze current market condition.
+
+        Returns:
+            dict with volatility, session, market type (trending/ranging)
+        """
+        df = self.data.get(timeframe)
+        if df is None or df.empty:
+            return {}
+
+        indicators = self.indicators.get(timeframe, {})
+
+        # Current ATR
+        atr = indicators.get('atr')
+        current_atr = atr.iloc[-1] if atr is not None and len(atr) > 0 else 0
+
+        # Volatility assessment
+        volatility = indicators.get('volatility')
+        current_vol = volatility.iloc[-1] if volatility is not None and len(volatility) > 0 else 0
+
+        # Average ATR for comparison
+        avg_atr = atr.mean() if atr is not None else current_atr
+
+        # Market type
+        trend_strength = indicators.get('trend_strength')
+        ts_val = trend_strength.iloc[-1] if trend_strength is not None and len(trend_strength) > 0 else 0.3
+
+        if ts_val > 0.5:
+            market_type = "trending"
+        elif ts_val > 0.25:
+            market_type = "weak_trend"
+        else:
+            market_type = "ranging"
+
+        # Volatility level
+        if avg_atr > 0:
+            vol_ratio = current_atr / avg_atr
+            if vol_ratio > 1.5:
+                vol_level = "high"
+            elif vol_ratio > 0.8:
+                vol_level = "normal"
+            else:
+                vol_level = "low"
+        else:
+            vol_level = "normal"
+
+        # Current session
+        now = datetime.utcnow()
+        hour = now.hour
+        if 0 <= hour < 8:
+            session = "asian"
+        elif 8 <= hour < 13:
+            session = "london"
+        elif 13 <= hour < 16:
+            session = "overlap"
+        elif 16 <= hour < 21:
+            session = "newyork"
+        else:
+            session = "off_hours"
+
+        return {
+            'market_type': market_type,
+            'volatility_level': vol_level,
+            'current_atr': float(current_atr) if not np.isnan(current_atr) else 0,
+            'avg_atr': float(avg_atr) if not np.isnan(avg_atr) else 0,
+            'session': session,
+            'trend_strength': float(ts_val) if not np.isnan(ts_val) else 0,
+            'hour_utc': hour,
+        }
+
+    # ===================== UTILITY =====================
+    def get_latest_candles(self, timeframe, count=5):
+        """Get the latest N candles for a timeframe."""
+        df = self.data.get(timeframe)
+        if df is None or df.empty:
+            return None
+        return df.tail(count)
+
+    def get_data(self, timeframe):
+        """Get full DataFrame for a timeframe."""
+        return self.data.get(timeframe)
+
+    def refresh_data(self, timeframe=None):
+        """Refresh data for one or all timeframes."""
+        if timeframe:
+            count = CANDLE_COUNT.get(timeframe, 200)
+            df = self.fetch_candles(timeframe, count)
+            if df is not None:
+                self.data[timeframe] = df
+                self._calculate_indicators(timeframe)
+                return True
+            return False
+        else:
+            return self.fetch_all_timeframes()

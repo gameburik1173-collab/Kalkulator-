@@ -401,7 +401,8 @@ class TradingBot:
                 profit_amount = close_deal.profit
 
         # Calculate profit in pips
-        pip_size = 0.1 if BROKER_CONFIG['symbol'] in ["XAUUSD", "GOLD"] else 0.0001
+        _sym = BROKER_CONFIG['symbol'].upper()
+        pip_size = 0.1 if ("XAUUSD" in _sym or "GOLD" in _sym) else 0.0001
         if trade['direction'] == 'buy':
             profit_pips = (close_price - trade['entry_price']) / pip_size
         else:
