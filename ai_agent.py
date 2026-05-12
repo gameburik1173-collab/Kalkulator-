@@ -15,7 +15,13 @@ import numpy as np
 from datetime import datetime
 import logging
 
-from config import AI_CONFIG, RISK_CONFIG, PREFERRED_SESSIONS
+try:
+    import MetaTrader5 as mt5
+    MT5_AVAILABLE = True
+except ImportError:
+    MT5_AVAILABLE = False
+
+from config import AI_CONFIG, RISK_CONFIG, PREFERRED_SESSIONS, BROKER_CONFIG
 from ambil_data import DataHandler
 from strategi import MultiTimeframeAnalyzer, TradeSignal
 from money_management import MoneyManager
@@ -144,6 +150,23 @@ class AIAgent:
         Returns:
             dict: {'can_trade': bool, 'reason': str}
         """
+        # Check if there's already an active trade (1 layer only)
+        if self.active_trades:
+            return {'can_trade': False, 'reason': 'Already have an active trade (1 layer max)'}
+
+        # Also check MT5 for any open positions with our magic number
+        if MT5_AVAILABLE:
+            try:
+                import MetaTrader5 as mt5
+                positions = mt5.positions_get(symbol=self.data_handler.symbol)
+                if positions and len(positions) > 0:
+                    # Check if any position belongs to our bot
+                    for pos in positions:
+                        if pos.magic == BROKER_CONFIG.get('magic_number', 0):
+                            return {'can_trade': False, 'reason': f'Active position exists (ticket {pos.ticket})'}
+            except Exception:
+                pass
+
         # Check money management limits
         can_trade, reason = self.money_manager.can_open_trade()
         if not can_trade:

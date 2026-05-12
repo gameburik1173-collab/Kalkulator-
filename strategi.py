@@ -1554,6 +1554,8 @@ class MultiTimeframeAnalyzer:
     def analyze(self):
         """
         Full multi-timeframe analysis.
+        STRICT MODE: Only returns signals that are properly aligned with trend.
+        Maximum 1 signal returned (the best one).
 
         Returns:
             list of TradeSignal (sorted by confidence)
@@ -1571,104 +1573,70 @@ class MultiTimeframeAnalyzer:
 
         logger.info(f"M15 Trend: {trend_direction} (strength: {trend_strength:.2f})")
 
-        # Step 2: Check if trend is strong enough
-        if trend_strength < MTF_CONFIG['trend_strength_min']:
-            logger.info(f"Trend too weak ({trend_strength:.2f}), looking for ranging patterns")
-            # In ranging market, still look for QM patterns at extremes
-            if trend_direction != 'neutral':
-                trend_direction = 'neutral'
+        # Step 2: STRICT - Only trade with clear trend direction
+        if trend_direction == 'neutral' or trend_strength < MTF_CONFIG['trend_strength_min']:
+            logger.info(f"No clear trend (direction={trend_direction}, strength={trend_strength:.2f}) - skipping")
+            return signals
 
-        # Step 3: Get M5 signals
-        # Only look for signals aligned with M15 trend
+        # Step 3: Get M5 signals - ONLY aligned with trend
         breakout_signal = self.breakout_strategy.analyze("M5")
         qm_signal = self.qm_strategy.analyze("M5")
         sd_signal = self.sd_strategy.analyze("M5")
         ob_signal = self.ob_strategy.analyze("M5")
 
-        # Step 4: Filter by trend alignment
-        if breakout_signal:
-            if self._is_aligned(breakout_signal, trend_direction):
-                # Step 5: Check M1/M3 for micro confirmation
-                micro_signal = self.micro_strategy.analyze(
-                    "M1", bias=breakout_signal.direction
-                )
+        # Step 4: STRICT FILTER - Only add signals that align with M15 trend
+        # No counter-trend trades allowed
+        if breakout_signal and self._is_aligned(breakout_signal, trend_direction):
+            # Require micro confirmation for extra safety
+            micro_signal = self.micro_strategy.analyze("M1", bias=breakout_signal.direction)
+            if micro_signal:
+                breakout_signal.confidence *= 1.15
+                breakout_signal.pattern_details['micro_confirmation'] = True
+            signals.append(breakout_signal)
+
+        if qm_signal and self._is_aligned(qm_signal, trend_direction):
+            micro_signal = self.micro_strategy.analyze("M1", bias=qm_signal.direction)
+            if micro_signal:
+                qm_signal.confidence *= 1.15
+                qm_signal.pattern_details['micro_confirmation'] = True
+            signals.append(qm_signal)
+
+        if sd_signal and self._is_aligned(sd_signal, trend_direction):
+            # SD: Only accept fresh zones
+            if sd_signal.pattern_details.get('fresh', False):
+                micro_signal = self.micro_strategy.analyze("M1", bias=sd_signal.direction)
                 if micro_signal:
-                    breakout_signal.confidence *= 1.2  # Boost for micro confirmation
-                    breakout_signal.pattern_details['micro_confirmation'] = True
-
-                signals.append(breakout_signal)
-            else:
-                logger.debug(f"Breakout signal filtered (not aligned with {trend_direction})")
-
-        if qm_signal:
-            if self._is_aligned(qm_signal, trend_direction):
-                micro_signal = self.micro_strategy.analyze(
-                    "M1", bias=qm_signal.direction
-                )
-                if micro_signal:
-                    qm_signal.confidence *= 1.2
-                    qm_signal.pattern_details['micro_confirmation'] = True
-
-                signals.append(qm_signal)
-            else:
-                # QM can be counter-trend (reversal pattern)
-                # but reduce confidence
-                qm_signal.confidence *= 0.7
-                qm_signal.pattern_details['counter_trend'] = True
-                signals.append(qm_signal)
-
-        # Step 4b: Supply & Demand zone signal
-        if sd_signal:
-            if self._is_aligned(sd_signal, trend_direction):
-                micro_signal = self.micro_strategy.analyze(
-                    "M1", bias=sd_signal.direction
-                )
-                if micro_signal:
-                    sd_signal.confidence *= 1.2
+                    sd_signal.confidence *= 1.15
                     sd_signal.pattern_details['micro_confirmation'] = True
                 signals.append(sd_signal)
             else:
-                # SD zones can work counter-trend but less reliable
-                sd_signal.confidence *= 0.6
-                sd_signal.pattern_details['counter_trend'] = True
-                signals.append(sd_signal)
+                logger.debug("SD signal rejected: zone not fresh")
 
-        # Step 4c: Order Block signal
-        if ob_signal:
-            if self._is_aligned(ob_signal, trend_direction):
-                micro_signal = self.micro_strategy.analyze(
-                    "M1", bias=ob_signal.direction
-                )
+        if ob_signal and self._is_aligned(ob_signal, trend_direction):
+            # OB: Only accept if structure was broken
+            if ob_signal.pattern_details.get('broke_structure', False):
+                micro_signal = self.micro_strategy.analyze("M1", bias=ob_signal.direction)
                 if micro_signal:
-                    ob_signal.confidence *= 1.2
+                    ob_signal.confidence *= 1.15
                     ob_signal.pattern_details['micro_confirmation'] = True
                 signals.append(ob_signal)
             else:
-                # OB with structure break can still be valid counter-trend
-                if ob_signal.pattern_details.get('broke_structure'):
-                    ob_signal.confidence *= 0.75
-                else:
-                    ob_signal.confidence *= 0.5
-                ob_signal.pattern_details['counter_trend'] = True
-                signals.append(ob_signal)
+                logger.debug("OB signal rejected: no structure break")
 
-        # Step 6: Check standalone micro patterns (only if trend is strong)
-        if trend_strength > 0.5:
-            micro_bias = 'buy' if trend_direction == 'bullish' else 'sell' if trend_direction == 'bearish' else None
-            if micro_bias:
-                micro_signal = self.micro_strategy.analyze("M1", bias=micro_bias)
-                if micro_signal:
-                    micro_signal.confidence *= 0.8  # Lower confidence for standalone micro
-                    signals.append(micro_signal)
-
-        # Step 7: Sort by confidence (highest first)
+        # Step 5: Sort by confidence and return ONLY the best one
         signals.sort(key=lambda x: x.confidence, reverse=True)
 
         # Cap confidence at 1.0
         for s in signals:
             s.confidence = min(s.confidence, 1.0)
 
-        logger.info(f"Total signals found: {len(signals)}")
+        # STRICT: Only return the single best signal (1 layer)
+        if signals:
+            best = signals[0]
+            logger.info(f"Best signal: {best.strategy} {best.direction} (conf: {best.confidence:.2f})")
+            return [best]
+
+        logger.info("No valid aligned signals found")
         return signals
 
     def _is_aligned(self, signal, trend_direction):

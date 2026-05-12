@@ -145,7 +145,7 @@ AI_CONFIG = {
         "candle_pattern",
     ],
     "retrain_interval": 50,          # Retrain setelah X trades
-    "min_confidence": 0.65,          # Minimum AI confidence untuk trade
+    "min_confidence": 0.70,          # Minimum AI confidence untuk trade (stricter)
     "use_sentiment": False,          # Use news sentiment (future)
 }
 
