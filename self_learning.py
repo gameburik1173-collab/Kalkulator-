@@ -88,6 +88,8 @@ class SelfLearning:
                 'breakout_pullback': {'wins': 0, 'losses': 0, 'confidence_adj': 0.0},
                 'qm_pattern': {'wins': 0, 'losses': 0, 'confidence_adj': 0.0},
                 'rbr_dbd': {'wins': 0, 'losses': 0, 'confidence_adj': 0.0},
+                'supply_demand': {'wins': 0, 'losses': 0, 'confidence_adj': 0.0},
+                'order_block': {'wins': 0, 'losses': 0, 'confidence_adj': 0.0},
             },
             'session_performance': {
                 'asian': {'wins': 0, 'losses': 0, 'avg_rr': 0.0},
@@ -491,7 +493,7 @@ class SelfLearning:
 
         # Strategy breakdown
         strategy_stats = {}
-        for strategy in ['breakout_pullback', 'qm_pattern', 'rbr_dbd']:
+        for strategy in ['breakout_pullback', 'qm_pattern', 'rbr_dbd', 'supply_demand', 'order_block']:
             strat_trades = [t for t in self.trade_history if t.get('strategy') == strategy]
             if strat_trades:
                 s_wins = sum(1 for t in strat_trades if t.get('is_win'))
@@ -694,7 +696,7 @@ class SelfLearning:
 
     def _encode_strategy(self, strategy):
         """Encode strategy to numeric."""
-        mapping = {'breakout_pullback': 0, 'qm_pattern': 1, 'rbr_dbd': 2}
+        mapping = {'breakout_pullback': 0, 'qm_pattern': 1, 'rbr_dbd': 2, 'supply_demand': 3, 'order_block': 4}
         return mapping.get(strategy, -1)
 
     def _encode_market_type(self, market_type):

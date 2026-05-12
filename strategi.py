@@ -4,8 +4,10 @@ STRATEGI - Advanced Trading Strategies
 =============================================================================
 1. Breakout + Pullback Strategy
 2. QM (Quasimodo) Pattern Strategy
-3. Multi-Timeframe Confluence
-4. RBR/DBD Micro Pattern (M1/M3)
+3. Supply & Demand Zone Strategy
+4. Order Block Strategy (ICT/Smart Money)
+5. Multi-Timeframe Confluence
+6. RBR/DBD Micro Pattern (M1/M3)
 =============================================================================
 """
 
@@ -899,6 +901,637 @@ class MicroPatternStrategy:
         return None
 
 
+# ===================== SUPPLY & DEMAND ZONE STRATEGY =====================
+class SupplyDemandStrategy:
+    """
+    Supply & Demand Zone Strategy:
+
+    Supply Zone (Sell):
+    - Area where strong selling occurred (big bearish candle after consolidation)
+    - Price rallied UP into zone then dropped sharply
+    - Fresh zone = not yet retested
+    - Entry when price returns to untested supply zone
+
+    Demand Zone (Buy):
+    - Area where strong buying occurred (big bullish candle after consolidation)
+    - Price dropped DOWN into zone then rallied sharply
+    - Fresh zone = not yet retested
+    - Entry when price returns to untested demand zone
+
+    Zone Quality:
+    - Departure strength (how fast price left the zone)
+    - Time spent in zone (less = stronger)
+    - Number of times tested (fresh = best, 1 retest ok, 2+ = weak)
+    """
+
+    def __init__(self, data_handler):
+        self.data = data_handler
+        self.name = "supply_demand"
+        self.zones = []  # List of active SD zones
+
+    def analyze(self, timeframe="M5"):
+        """
+        Analyze for Supply & Demand zone entries.
+
+        Returns:
+            TradeSignal or None
+        """
+        df = self.data.get_data(timeframe)
+        if df is None or len(df) < 50:
+            return None
+
+        pip_value = self.data._get_pip_value()
+        current_price = df['close'].iloc[-1]
+
+        # Detect fresh zones
+        self.zones = self._detect_zones(df, pip_value)
+
+        if not self.zones:
+            return None
+
+        # Check if price is entering any fresh zone
+        signal = self._check_zone_entry(df, current_price, pip_value)
+
+        if signal and signal.valid:
+            signal.confluence_score = self._calculate_sd_confluence(signal, df, timeframe)
+            signal.confidence = signal.confluence_score
+            logger.info(f"Supply/Demand signal: {signal}")
+
+        return signal if signal and signal.valid else None
+
+    def _detect_zones(self, df, pip_value):
+        """
+        Detect Supply and Demand zones.
+
+        A zone is formed when:
+        1. Base candles (small body, consolidation) followed by
+        2. Explosive move away (big body candle = departure)
+        """
+        zones = []
+        min_departure_pips = 20 * pip_value  # Minimum departure strength
+
+        for i in range(5, len(df) - 3):
+            # Look for explosive bullish departure (DEMAND zone below)
+            if (df['is_bullish'].iloc[i] and
+                    df['body'].iloc[i] > min_departure_pips and
+                    df['body_ratio'].iloc[i] > 0.65):
+
+                # Check if there was a base before the departure
+                base_start, base_end = self._find_base(df, i, direction='up')
+                if base_start is not None:
+                    zone_high = df['high'].iloc[base_start:base_end + 1].max()
+                    zone_low = df['low'].iloc[base_start:base_end + 1].min()
+                    zone_width = zone_high - zone_low
+
+                    if zone_width > 3 * pip_value and zone_width < 50 * pip_value:
+                        # Check if zone is still fresh (not retested)
+                        tests = self._count_zone_tests(df, zone_low, zone_high, i + 1)
+
+                        if tests <= 1:  # Fresh or tested once
+                            zones.append({
+                                'type': 'demand',
+                                'high': zone_high,
+                                'low': zone_low,
+                                'mid': (zone_high + zone_low) / 2,
+                                'width_pips': zone_width / pip_value,
+                                'departure_strength': df['body'].iloc[i] / pip_value,
+                                'base_candles': base_end - base_start + 1,
+                                'formed_index': i,
+                                'tests': tests,
+                                'fresh': tests == 0,
+                            })
+
+            # Look for explosive bearish departure (SUPPLY zone above)
+            if (not df['is_bullish'].iloc[i] and
+                    df['body'].iloc[i] > min_departure_pips and
+                    df['body_ratio'].iloc[i] > 0.65):
+
+                base_start, base_end = self._find_base(df, i, direction='down')
+                if base_start is not None:
+                    zone_high = df['high'].iloc[base_start:base_end + 1].max()
+                    zone_low = df['low'].iloc[base_start:base_end + 1].min()
+                    zone_width = zone_high - zone_low
+
+                    if zone_width > 3 * pip_value and zone_width < 50 * pip_value:
+                        tests = self._count_zone_tests(df, zone_low, zone_high, i + 1)
+
+                        if tests <= 1:
+                            zones.append({
+                                'type': 'supply',
+                                'high': zone_high,
+                                'low': zone_low,
+                                'mid': (zone_high + zone_low) / 2,
+                                'width_pips': zone_width / pip_value,
+                                'departure_strength': df['body'].iloc[i] / pip_value,
+                                'base_candles': base_end - base_start + 1,
+                                'formed_index': i,
+                                'tests': tests,
+                                'fresh': tests == 0,
+                            })
+
+        # Sort by recency (most recent first) and freshness
+        zones.sort(key=lambda z: (-int(z['fresh']), -z['formed_index']))
+        return zones[:10]  # Keep top 10 zones
+
+    def _find_base(self, df, departure_idx, direction='up'):
+        """
+        Find the base (consolidation) before a departure candle.
+        Base = 2-5 candles with small bodies before the explosive move.
+        """
+        max_base_candles = 5
+        min_base_candles = 2
+
+        # Look backwards from the departure candle
+        for length in range(min_base_candles, max_base_candles + 1):
+            start = departure_idx - length
+            if start < 0:
+                continue
+
+            segment = df.iloc[start:departure_idx]
+
+            # Check if candles have small bodies (consolidation)
+            avg_body_ratio = segment['body_ratio'].mean()
+            max_range = segment['range'].max()
+            avg_range = segment['range'].mean()
+
+            # Base criteria: small body ratio, low volatility
+            if avg_body_ratio < 0.55 and max_range < avg_range * 2.5:
+                return start, departure_idx - 1
+
+        return None, None
+
+    def _count_zone_tests(self, df, zone_low, zone_high, start_idx):
+        """Count how many times price has returned to a zone after formation."""
+        tests = 0
+        in_zone = False
+
+        for i in range(start_idx, len(df)):
+            price_in_zone = df['low'].iloc[i] <= zone_high and df['high'].iloc[i] >= zone_low
+
+            if price_in_zone and not in_zone:
+                tests += 1
+                in_zone = True
+            elif not price_in_zone:
+                in_zone = False
+
+        return tests
+
+    def _check_zone_entry(self, df, current_price, pip_value):
+        """Check if current price is entering a fresh zone."""
+        entry_buffer = 5 * pip_value  # Enter slightly before zone edge
+
+        for zone in self.zones:
+            signal = TradeSignal()
+            signal.strategy = self.name
+
+            if zone['type'] == 'demand':
+                # Price approaching demand zone from above
+                if (current_price <= zone['high'] + entry_buffer and
+                        current_price >= zone['low'] - entry_buffer):
+
+                    signal.direction = 'buy'
+                    signal.entry_price = current_price
+                    signal.stop_loss = zone['low'] - (10 * pip_value)
+                    signal.timeframe = "M5"
+
+                    # Ensure SL within limits
+                    sl_pips = (signal.entry_price - signal.stop_loss) / pip_value
+                    if sl_pips < RISK_CONFIG['sl_min_pips']:
+                        signal.stop_loss = signal.entry_price - (RISK_CONFIG['sl_min_pips'] * pip_value)
+                    elif sl_pips > RISK_CONFIG['sl_max_pips']:
+                        signal.stop_loss = signal.entry_price - (RISK_CONFIG['sl_max_pips'] * pip_value)
+
+                    sl_distance = signal.entry_price - signal.stop_loss
+                    signal.take_profit = signal.entry_price + (sl_distance * RISK_CONFIG['rr_minimum'])
+                    signal.risk_reward = RISK_CONFIG['rr_minimum']
+
+                    signal.pattern_details = {
+                        'pattern': 'demand_zone_entry',
+                        'zone_high': zone['high'],
+                        'zone_low': zone['low'],
+                        'departure_strength': zone['departure_strength'],
+                        'fresh': zone['fresh'],
+                        'tests': zone['tests'],
+                    }
+                    signal.valid = True
+                    return signal
+
+            elif zone['type'] == 'supply':
+                # Price approaching supply zone from below
+                if (current_price >= zone['low'] - entry_buffer and
+                        current_price <= zone['high'] + entry_buffer):
+
+                    signal.direction = 'sell'
+                    signal.entry_price = current_price
+                    signal.stop_loss = zone['high'] + (10 * pip_value)
+                    signal.timeframe = "M5"
+
+                    sl_pips = (signal.stop_loss - signal.entry_price) / pip_value
+                    if sl_pips < RISK_CONFIG['sl_min_pips']:
+                        signal.stop_loss = signal.entry_price + (RISK_CONFIG['sl_min_pips'] * pip_value)
+                    elif sl_pips > RISK_CONFIG['sl_max_pips']:
+                        signal.stop_loss = signal.entry_price + (RISK_CONFIG['sl_max_pips'] * pip_value)
+
+                    sl_distance = signal.stop_loss - signal.entry_price
+                    signal.take_profit = signal.entry_price - (sl_distance * RISK_CONFIG['rr_minimum'])
+                    signal.risk_reward = RISK_CONFIG['rr_minimum']
+
+                    signal.pattern_details = {
+                        'pattern': 'supply_zone_entry',
+                        'zone_high': zone['high'],
+                        'zone_low': zone['low'],
+                        'departure_strength': zone['departure_strength'],
+                        'fresh': zone['fresh'],
+                        'tests': zone['tests'],
+                    }
+                    signal.valid = True
+                    return signal
+
+        return None
+
+    def _calculate_sd_confluence(self, signal, df, timeframe):
+        """Calculate confluence score for Supply/Demand signal."""
+        score = 0.0
+        factors = 0
+
+        # Factor 1: Zone freshness (fresh = best)
+        if signal.pattern_details.get('fresh'):
+            score += 1.0
+        else:
+            score += 0.5
+        factors += 1
+
+        # Factor 2: Departure strength
+        dep_strength = signal.pattern_details.get('departure_strength', 0)
+        if dep_strength > 40:
+            score += 1.0
+        elif dep_strength > 25:
+            score += 0.7
+        else:
+            score += 0.4
+        factors += 1
+
+        # Factor 3: Trend alignment
+        trend = self.data.get_trend_direction("M15")
+        if trend:
+            if signal.direction == 'buy' and trend['direction'] == 'bullish':
+                score += 1.0
+            elif signal.direction == 'sell' and trend['direction'] == 'bearish':
+                score += 1.0
+            elif trend['direction'] == 'neutral':
+                score += 0.5
+            else:
+                score += 0.2
+            factors += 1
+
+        # Factor 4: Volume confirmation
+        if 'vol_ratio' in df.columns:
+            recent_vol = df['vol_ratio'].iloc[-3:].mean()
+            if recent_vol > 1.2:
+                score += 0.8
+            else:
+                score += 0.4
+            factors += 1
+
+        # Factor 5: RSI at zone
+        if 'rsi' in df.columns:
+            rsi = df['rsi'].iloc[-1]
+            if signal.direction == 'buy' and rsi < 40:
+                score += 0.9
+            elif signal.direction == 'sell' and rsi > 60:
+                score += 0.9
+            else:
+                score += 0.4
+            factors += 1
+
+        return score / factors if factors > 0 else 0.5
+
+
+# ===================== ORDER BLOCK STRATEGY =====================
+class OrderBlockStrategy:
+    """
+    Order Block Strategy (Institutional Trading Concept):
+
+    Bullish Order Block:
+    - Last bearish candle before a strong bullish impulse move
+    - Represents institutional buying (smart money accumulation)
+    - Entry when price returns to the order block zone
+
+    Bearish Order Block:
+    - Last bullish candle before a strong bearish impulse move
+    - Represents institutional selling (smart money distribution)
+    - Entry when price returns to the order block zone
+
+    Criteria:
+    - Impulse move must break structure (new high/low)
+    - Order block candle must be followed by displacement
+    - Displacement = 2-3 candles with strong momentum away
+    - Order block zone = high to low of the OB candle
+    """
+
+    def __init__(self, data_handler):
+        self.data = data_handler
+        self.name = "order_block"
+        self.order_blocks = []
+
+    def analyze(self, timeframe="M5"):
+        """
+        Analyze for Order Block entries.
+
+        Returns:
+            TradeSignal or None
+        """
+        df = self.data.get_data(timeframe)
+        if df is None or len(df) < 50:
+            return None
+
+        pip_value = self.data._get_pip_value()
+        current_price = df['close'].iloc[-1]
+
+        # Detect order blocks
+        self.order_blocks = self._detect_order_blocks(df, pip_value)
+
+        if not self.order_blocks:
+            return None
+
+        # Check if price is entering any unmitigated order block
+        signal = self._check_ob_entry(df, current_price, pip_value)
+
+        if signal and signal.valid:
+            signal.confluence_score = self._calculate_ob_confluence(signal, df, timeframe)
+            signal.confidence = signal.confluence_score
+            logger.info(f"Order Block signal: {signal}")
+
+        return signal if signal and signal.valid else None
+
+    def _detect_order_blocks(self, df, pip_value):
+        """
+        Detect Order Blocks.
+
+        Bullish OB: Last bearish candle before bullish impulse that breaks structure
+        Bearish OB: Last bullish candle before bearish impulse that breaks structure
+        """
+        order_blocks = []
+        min_impulse_pips = 25 * pip_value
+        lookback = min(len(df) - 10, 100)  # Look back up to 100 candles
+
+        for i in range(10, lookback):
+            # === BULLISH ORDER BLOCK ===
+            # Find bearish candle followed by strong bullish displacement
+            if not df['is_bullish'].iloc[i]:
+                # Check for bullish displacement (next 2-4 candles)
+                displacement = self._check_displacement(df, i, 'bullish', min_impulse_pips)
+
+                if displacement:
+                    # This bearish candle is a Bullish Order Block
+                    ob_high = df['high'].iloc[i]
+                    ob_low = df['low'].iloc[i]
+
+                    # Check if OB is unmitigated (price hasn't fully returned)
+                    mitigated = self._is_mitigated(df, ob_low, ob_high, i + 1, 'bullish')
+
+                    if not mitigated:
+                        order_blocks.append({
+                            'type': 'bullish_ob',
+                            'high': ob_high,
+                            'low': ob_low,
+                            'mid': (ob_high + ob_low) / 2,
+                            'width_pips': (ob_high - ob_low) / pip_value,
+                            'impulse_strength': displacement['strength'],
+                            'broke_structure': displacement['broke_structure'],
+                            'formed_index': i,
+                            'formed_time': df.index[i],
+                            'mitigated': False,
+                        })
+
+            # === BEARISH ORDER BLOCK ===
+            # Find bullish candle followed by strong bearish displacement
+            if df['is_bullish'].iloc[i]:
+                displacement = self._check_displacement(df, i, 'bearish', min_impulse_pips)
+
+                if displacement:
+                    ob_high = df['high'].iloc[i]
+                    ob_low = df['low'].iloc[i]
+
+                    mitigated = self._is_mitigated(df, ob_low, ob_high, i + 1, 'bearish')
+
+                    if not mitigated:
+                        order_blocks.append({
+                            'type': 'bearish_ob',
+                            'high': ob_high,
+                            'low': ob_low,
+                            'mid': (ob_high + ob_low) / 2,
+                            'width_pips': (ob_high - ob_low) / pip_value,
+                            'impulse_strength': displacement['strength'],
+                            'broke_structure': displacement['broke_structure'],
+                            'formed_index': i,
+                            'formed_time': df.index[i],
+                            'mitigated': False,
+                        })
+
+        # Sort by recency
+        order_blocks.sort(key=lambda ob: -ob['formed_index'])
+        return order_blocks[:8]  # Keep top 8
+
+    def _check_displacement(self, df, ob_index, direction, min_impulse):
+        """
+        Check if there's a strong displacement after the OB candle.
+        Displacement = 2-4 candles with strong momentum.
+        """
+        check_range = min(ob_index + 5, len(df))
+
+        if direction == 'bullish':
+            # Check next 2-4 candles for strong upward move
+            total_move = 0
+            bullish_count = 0
+
+            for j in range(ob_index + 1, check_range):
+                if df['is_bullish'].iloc[j]:
+                    bullish_count += 1
+                    total_move += df['body'].iloc[j]
+
+            if bullish_count >= 2 and total_move >= min_impulse:
+                # Check if it broke recent structure (swing high)
+                recent_high = df['high'].iloc[max(0, ob_index - 20):ob_index].max()
+                impulse_high = df['high'].iloc[ob_index + 1:check_range].max()
+                broke = impulse_high > recent_high
+
+                return {
+                    'strength': total_move / self.data._get_pip_value(),
+                    'candles': bullish_count,
+                    'broke_structure': broke,
+                }
+
+        elif direction == 'bearish':
+            total_move = 0
+            bearish_count = 0
+
+            for j in range(ob_index + 1, check_range):
+                if not df['is_bullish'].iloc[j]:
+                    bearish_count += 1
+                    total_move += df['body'].iloc[j]
+
+            if bearish_count >= 2 and total_move >= min_impulse:
+                recent_low = df['low'].iloc[max(0, ob_index - 20):ob_index].min()
+                impulse_low = df['low'].iloc[ob_index + 1:check_range].min()
+                broke = impulse_low < recent_low
+
+                return {
+                    'strength': total_move / self.data._get_pip_value(),
+                    'candles': bearish_count,
+                    'broke_structure': broke,
+                }
+
+        return None
+
+    def _is_mitigated(self, df, ob_low, ob_high, start_idx, ob_type):
+        """
+        Check if an order block has been mitigated.
+        Mitigated = price has fully traded through the OB zone.
+        """
+        for i in range(start_idx, len(df) - 1):  # Exclude current candle
+            if ob_type == 'bullish':
+                # Bullish OB mitigated if price closes below OB low
+                if df['close'].iloc[i] < ob_low:
+                    return True
+            elif ob_type == 'bearish':
+                # Bearish OB mitigated if price closes above OB high
+                if df['close'].iloc[i] > ob_high:
+                    return True
+
+        return False
+
+    def _check_ob_entry(self, df, current_price, pip_value):
+        """Check if current price is entering an unmitigated order block."""
+        entry_buffer = 3 * pip_value
+
+        for ob in self.order_blocks:
+            signal = TradeSignal()
+            signal.strategy = self.name
+
+            if ob['type'] == 'bullish_ob':
+                # Price returning to bullish OB = buy opportunity
+                if (current_price <= ob['high'] + entry_buffer and
+                        current_price >= ob['low'] - entry_buffer):
+
+                    signal.direction = 'buy'
+                    signal.entry_price = current_price
+                    signal.stop_loss = ob['low'] - (10 * pip_value)
+                    signal.timeframe = "M5"
+
+                    sl_pips = (signal.entry_price - signal.stop_loss) / pip_value
+                    if sl_pips < RISK_CONFIG['sl_min_pips']:
+                        signal.stop_loss = signal.entry_price - (RISK_CONFIG['sl_min_pips'] * pip_value)
+                    elif sl_pips > RISK_CONFIG['sl_max_pips']:
+                        signal.stop_loss = signal.entry_price - (RISK_CONFIG['sl_max_pips'] * pip_value)
+
+                    sl_distance = signal.entry_price - signal.stop_loss
+                    signal.take_profit = signal.entry_price + (sl_distance * RISK_CONFIG['rr_minimum'])
+                    signal.risk_reward = RISK_CONFIG['rr_minimum']
+
+                    signal.pattern_details = {
+                        'pattern': 'bullish_order_block',
+                        'ob_high': ob['high'],
+                        'ob_low': ob['low'],
+                        'impulse_strength': ob['impulse_strength'],
+                        'broke_structure': ob['broke_structure'],
+                        'width_pips': ob['width_pips'],
+                    }
+                    signal.valid = True
+                    return signal
+
+            elif ob['type'] == 'bearish_ob':
+                # Price returning to bearish OB = sell opportunity
+                if (current_price >= ob['low'] - entry_buffer and
+                        current_price <= ob['high'] + entry_buffer):
+
+                    signal.direction = 'sell'
+                    signal.entry_price = current_price
+                    signal.stop_loss = ob['high'] + (10 * pip_value)
+                    signal.timeframe = "M5"
+
+                    sl_pips = (signal.stop_loss - signal.entry_price) / pip_value
+                    if sl_pips < RISK_CONFIG['sl_min_pips']:
+                        signal.stop_loss = signal.entry_price + (RISK_CONFIG['sl_min_pips'] * pip_value)
+                    elif sl_pips > RISK_CONFIG['sl_max_pips']:
+                        signal.stop_loss = signal.entry_price + (RISK_CONFIG['sl_max_pips'] * pip_value)
+
+                    sl_distance = signal.stop_loss - signal.entry_price
+                    signal.take_profit = signal.entry_price - (sl_distance * RISK_CONFIG['rr_minimum'])
+                    signal.risk_reward = RISK_CONFIG['rr_minimum']
+
+                    signal.pattern_details = {
+                        'pattern': 'bearish_order_block',
+                        'ob_high': ob['high'],
+                        'ob_low': ob['low'],
+                        'impulse_strength': ob['impulse_strength'],
+                        'broke_structure': ob['broke_structure'],
+                        'width_pips': ob['width_pips'],
+                    }
+                    signal.valid = True
+                    return signal
+
+        return None
+
+    def _calculate_ob_confluence(self, signal, df, timeframe):
+        """Calculate confluence score for Order Block signal."""
+        score = 0.0
+        factors = 0
+
+        # Factor 1: Structure break (key for OB validity)
+        if signal.pattern_details.get('broke_structure'):
+            score += 1.0
+        else:
+            score += 0.4
+        factors += 1
+
+        # Factor 2: Impulse strength
+        impulse = signal.pattern_details.get('impulse_strength', 0)
+        if impulse > 50:
+            score += 1.0
+        elif impulse > 30:
+            score += 0.7
+        else:
+            score += 0.4
+        factors += 1
+
+        # Factor 3: Trend alignment
+        trend = self.data.get_trend_direction("M15")
+        if trend:
+            if signal.direction == 'buy' and trend['direction'] == 'bullish':
+                score += 1.0
+            elif signal.direction == 'sell' and trend['direction'] == 'bearish':
+                score += 1.0
+            elif trend['direction'] == 'neutral':
+                score += 0.5
+            else:
+                score += 0.2
+            factors += 1
+
+        # Factor 4: OB width (smaller = more precise)
+        width = signal.pattern_details.get('width_pips', 30)
+        if width < 15:
+            score += 0.9
+        elif width < 30:
+            score += 0.7
+        else:
+            score += 0.4
+        factors += 1
+
+        # Factor 5: Volume at OB
+        if 'vol_ratio' in df.columns:
+            recent_vol = df['vol_ratio'].iloc[-3:].mean()
+            if recent_vol > 1.3:
+                score += 0.9
+            elif recent_vol > 1.0:
+                score += 0.6
+            else:
+                score += 0.3
+            factors += 1
+
+        return score / factors if factors > 0 else 0.5
+
+
 # ===================== MULTI-TIMEFRAME CONFLUENCE =====================
 class MultiTimeframeAnalyzer:
     """
@@ -915,6 +1548,8 @@ class MultiTimeframeAnalyzer:
         self.breakout_strategy = BreakoutPullbackStrategy(data_handler)
         self.qm_strategy = QMPatternStrategy(data_handler)
         self.micro_strategy = MicroPatternStrategy(data_handler)
+        self.sd_strategy = SupplyDemandStrategy(data_handler)
+        self.ob_strategy = OrderBlockStrategy(data_handler)
 
     def analyze(self):
         """
@@ -947,6 +1582,8 @@ class MultiTimeframeAnalyzer:
         # Only look for signals aligned with M15 trend
         breakout_signal = self.breakout_strategy.analyze("M5")
         qm_signal = self.qm_strategy.analyze("M5")
+        sd_signal = self.sd_strategy.analyze("M5")
+        ob_signal = self.ob_strategy.analyze("M5")
 
         # Step 4: Filter by trend alignment
         if breakout_signal:
@@ -979,6 +1616,41 @@ class MultiTimeframeAnalyzer:
                 qm_signal.confidence *= 0.7
                 qm_signal.pattern_details['counter_trend'] = True
                 signals.append(qm_signal)
+
+        # Step 4b: Supply & Demand zone signal
+        if sd_signal:
+            if self._is_aligned(sd_signal, trend_direction):
+                micro_signal = self.micro_strategy.analyze(
+                    "M1", bias=sd_signal.direction
+                )
+                if micro_signal:
+                    sd_signal.confidence *= 1.2
+                    sd_signal.pattern_details['micro_confirmation'] = True
+                signals.append(sd_signal)
+            else:
+                # SD zones can work counter-trend but less reliable
+                sd_signal.confidence *= 0.6
+                sd_signal.pattern_details['counter_trend'] = True
+                signals.append(sd_signal)
+
+        # Step 4c: Order Block signal
+        if ob_signal:
+            if self._is_aligned(ob_signal, trend_direction):
+                micro_signal = self.micro_strategy.analyze(
+                    "M1", bias=ob_signal.direction
+                )
+                if micro_signal:
+                    ob_signal.confidence *= 1.2
+                    ob_signal.pattern_details['micro_confirmation'] = True
+                signals.append(ob_signal)
+            else:
+                # OB with structure break can still be valid counter-trend
+                if ob_signal.pattern_details.get('broke_structure'):
+                    ob_signal.confidence *= 0.75
+                else:
+                    ob_signal.confidence *= 0.5
+                ob_signal.pattern_details['counter_trend'] = True
+                signals.append(ob_signal)
 
         # Step 6: Check standalone micro patterns (only if trend is strong)
         if trend_strength > 0.5:

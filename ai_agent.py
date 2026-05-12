@@ -300,6 +300,24 @@ class AIAgent:
             elif market_type == 'weak_trend':
                 score += 0.1
 
+        # Supply & Demand works in all conditions
+        elif signal.strategy == 'supply_demand':
+            if market_type == 'ranging':
+                score += 0.3  # SD zones excellent in ranging
+            elif market_type == 'trending':
+                score += 0.2  # With-trend SD zones still good
+            else:
+                score += 0.15
+
+        # Order Blocks best in trending with structure breaks
+        elif signal.strategy == 'order_block':
+            if market_type == 'trending':
+                score += 0.3  # OB best with trend
+            elif market_type == 'weak_trend':
+                score += 0.2
+            else:
+                score += 0.1
+
         # Volatility consideration
         if vol_level == 'high':
             score += 0.1  # More opportunity but also more risk
