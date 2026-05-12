@@ -396,6 +396,7 @@ class MoneyManager:
         logger.info(
             f"Trade recorded: {'Win' if profit_amount > 0 else 'Loss'} "
             f"| Streak W:{self.consecutive_wins} L:{self.consecutive_losses} "
+            f"| Daily trades: {self.daily_trades}/{self.config['max_trades_per_day']} "
             f"| Daily PnL: ${self.daily_pnl:.2f} | DD: {self.current_drawdown:.1f}%"
         )
 

@@ -369,10 +369,15 @@ class TradingBot:
             if ticket is None:
                 continue
 
+            # Skip already-processed trades
+            if trade.get('_processed'):
+                continue
+
             # Check if position still exists
             position = mt5.positions_get(ticket=ticket)
             if not position:
-                # Position closed - get deal history
+                # Position closed - mark and process
+                trade['_processed'] = True
                 closed_tickets.append(trade)
 
         # Process closed trades
@@ -382,6 +387,12 @@ class TradingBot:
     def _process_closed_trade(self, trade):
         """Process a trade that has been closed."""
         ticket = trade.get('ticket')
+
+        # IMPORTANT: Remove from active trades FIRST to prevent spam
+        self.agent.active_trades = [
+            t for t in self.agent.active_trades
+            if t.get('ticket') != ticket
+        ]
 
         # Try to get the closing deal
         close_price = trade['entry_price']  # Default
@@ -442,6 +453,7 @@ class TradingBot:
         # Record in AI agent (updates learning + money manager)
         self.agent.record_closed_trade(trade_result)
 
+        # Log ONCE
         logger.info(
             f"Trade {ticket} closed: "
             f"{'WIN' if profit_amount > 0 else 'LOSS'} | "
@@ -449,7 +461,7 @@ class TradingBot:
             f"RR: {actual_rr:.2f}"
         )
 
-        # Send notification
+        # Send notification ONCE
         self._notify_trade_closed(trade_result)
 
     # ===================== NOTIFICATIONS =====================

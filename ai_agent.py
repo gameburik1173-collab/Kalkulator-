@@ -550,6 +550,14 @@ class AIAgent:
         Args:
             trade_result: dict with trade outcome details
         """
+        # Prevent duplicate recording
+        trade_id = trade_result.get('id')
+        if hasattr(self, '_recorded_trades') and trade_id in self._recorded_trades:
+            return
+        if not hasattr(self, '_recorded_trades'):
+            self._recorded_trades = set()
+        self._recorded_trades.add(trade_id)
+
         # Record in money manager
         profit_pips = trade_result.get('profit_pips', 0)
         profit_amount = trade_result.get('profit_amount', 0)
@@ -558,8 +566,7 @@ class AIAgent:
         # Record in self-learning
         self.learner.record_trade(trade_result)
 
-        # Remove from active trades
-        trade_id = trade_result.get('id')
+        # Remove from active trades (safety check)
         self.active_trades = [t for t in self.active_trades if t.get('id') != trade_id]
 
         # Check if retraining needed
