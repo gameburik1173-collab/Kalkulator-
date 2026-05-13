@@ -1574,9 +1574,13 @@ class MultiTimeframeAnalyzer:
         logger.info(f"M15 Trend: {trend_direction} (strength: {trend_strength:.2f})")
 
         # Step 2: STRICT - Only trade with clear trend direction
-        if trend_direction == 'neutral' or trend_strength < MTF_CONFIG['trend_strength_min']:
-            logger.info(f"No clear trend (direction={trend_direction}, strength={trend_strength:.2f}) - skipping")
+        if trend_direction == 'neutral':
+            logger.info(f"No clear trend direction (neutral) - skipping")
             return signals
+
+        # If trend has a direction but strength is very low, still allow but log it
+        if trend_strength < MTF_CONFIG['trend_strength_min']:
+            logger.info(f"Weak trend ({trend_direction}, strength={trend_strength:.2f}) - proceeding with caution")
 
         # Step 3: Get M5 signals - ONLY aligned with trend
         breakout_signal = self.breakout_strategy.analyze("M5")

@@ -61,7 +61,7 @@ MTF_CONFIG = {
     "trend_ema_filter": 200,         # EMA filter utama
     "signal_ema": 20,                # EMA untuk signal M5
     "micro_ema": 9,                  # EMA untuk micro M1/M3
-    "trend_strength_min": 0.3,       # Minimum trend strength (0-1)
+    "trend_strength_min": 0.20,      # Minimum trend strength (0-1) - lowered for weak trends
     "alignment_required": True,      # Semua TF harus selaras
 }
 
