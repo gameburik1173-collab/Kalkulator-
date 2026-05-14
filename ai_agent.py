@@ -540,7 +540,8 @@ class AIAgent:
 
             # Check breakeven
             be_level = self.money_manager.calculate_breakeven(
-                entry, current_price, direction, current_sl
+                entry, current_price, direction, current_sl,
+                take_profit=trade.get('take_profit')
             )
             if be_level is not None:
                 trade['current_sl'] = be_level

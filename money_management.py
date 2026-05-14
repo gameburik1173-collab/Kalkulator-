@@ -404,16 +404,12 @@ class MoneyManager:
     def calculate_trailing_stop(self, entry_price, current_price, direction, current_sl):
         """
         Calculate trailing stop level.
-
-        Args:
-            entry_price: Original entry price
-            current_price: Current market price
-            direction: 'buy' or 'sell'
-            current_sl: Current stop loss level
-
-        Returns:
-            float: New SL level, or None if no update needed
+        DISABLED - returns None always.
         """
+        # Trailing stop is disabled via config
+        if not self.config.get('trailing_stop_enabled', False):
+            return None
+
         pip_size = self._get_pip_size()
         activate_pips = self.config['trailing_stop_activate_pips']
         trail_distance = self.config['trailing_stop_distance_pips']
@@ -436,26 +432,49 @@ class MoneyManager:
 
         return None
 
-    def calculate_breakeven(self, entry_price, current_price, direction, current_sl):
+    def calculate_breakeven(self, entry_price, current_price, direction, current_sl, take_profit=None):
         """
         Check if we should move SL to breakeven.
+        Triggers when profit reaches 60% of TP distance.
 
         Returns:
             float: Breakeven SL level, or None if not triggered
         """
         pip_size = self._get_pip_size()
-        activate_pips = self.config['breakeven_activate_pips']
         buffer_pips = 2  # Small buffer above/below entry
 
-        if direction == 'buy':
-            profit_pips = (current_price - entry_price) / pip_size
-            if profit_pips >= activate_pips and current_sl < entry_price:
-                return entry_price + (buffer_pips * pip_size)
+        # Calculate based on percentage of TP distance (60%)
+        be_percent = self.config.get('breakeven_at_percent', 60) / 100.0
 
-        elif direction == 'sell':
-            profit_pips = (entry_price - current_price) / pip_size
-            if profit_pips >= activate_pips and current_sl > entry_price:
-                return entry_price - (buffer_pips * pip_size)
+        if take_profit and take_profit != 0:
+            if direction == 'buy':
+                tp_distance = take_profit - entry_price
+                current_profit = current_price - entry_price
+                threshold = tp_distance * be_percent
+
+                if current_profit >= threshold and current_sl < entry_price:
+                    return entry_price + (buffer_pips * pip_size)
+
+            elif direction == 'sell':
+                tp_distance = entry_price - take_profit
+                current_profit = entry_price - current_price
+                threshold = tp_distance * be_percent
+
+                if current_profit >= threshold and current_sl > entry_price:
+                    return entry_price - (buffer_pips * pip_size)
+        else:
+            # Fallback: use activate_pips if no TP provided
+            activate_pips = self.config['breakeven_activate_pips']
+
+            if direction == 'buy':
+                profit_pips = (current_price - entry_price) / pip_size
+                if profit_pips >= activate_pips and current_sl < entry_price:
+                    return entry_price + (buffer_pips * pip_size)
+
+            elif direction == 'sell':
+                profit_pips = (entry_price - current_price) / pip_size
+                if profit_pips >= activate_pips and current_sl > entry_price:
+                    return entry_price - (buffer_pips * pip_size)
 
         return None
 

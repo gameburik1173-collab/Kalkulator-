@@ -80,13 +80,15 @@ RISK_CONFIG = {
     "risk_max": 2.0,                 # Maximum risk %
     "sl_min_pips": 30,               # Minimum SL distance
     "sl_max_pips": 60,               # Maximum SL distance
-    "rr_minimum": 2.0,               # Minimum Risk:Reward ratio
-    "rr_target": 3.0,                # Target Risk:Reward ratio
+    "rr_minimum": 1.5,               # Minimum Risk:Reward ratio (1:1.5)
+    "rr_target": 2.0,                # Target Risk:Reward ratio
     "max_trades_per_day": 10,         # Max trades per hari
     "max_drawdown_percent": 8.0,     # Max drawdown sebelum stop
-    "trailing_stop_activate_pips": 30,  # Activate trailing setelah X pips profit
-    "trailing_stop_distance_pips": 15,  # Trailing stop distance
-    "breakeven_activate_pips": 20,   # Move SL to breakeven setelah X pips
+    "trailing_stop_enabled": False,     # Trailing stop DISABLED
+    "trailing_stop_activate_pips": 30,  # (disabled) Activate trailing setelah X pips profit
+    "trailing_stop_distance_pips": 15,  # (disabled) Trailing stop distance
+    "breakeven_at_percent": 60,      # Move SL to breakeven at 60% of TP distance
+    "breakeven_activate_pips": 20,   # Fallback: Move SL to breakeven setelah X pips
 }
 
 # ===================== SUPPORT & RESISTANCE =====================
