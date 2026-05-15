@@ -11,7 +11,7 @@ BROKER_CONFIG = {
     "server": "Exness-MT5Trial6",
     "login": 413762057,          # MT5 account number
     "password": "Jeybotai07.",      # MT5 password
-    "symbol": "XAUUSD",  # Trading pair
+    "symbol": "XAUUSDm",  # Trading pair
     "magic_number": 202501,
 }
 
