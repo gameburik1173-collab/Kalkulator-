@@ -70,12 +70,17 @@ class TradeSignal:
 # ===================== BREAKOUT + PULLBACK STRATEGY =====================
 class BreakoutPullbackStrategy:
     """
-    Breakout + Pullback Strategy:
+    Breakout + Pullback to OB/SD Zone Strategy (M5):
     1. Identify strong SR levels
     2. Detect breakout (close above/below SR with strong body)
-    3. Wait for pullback to broken SR level
-    4. Enter on confirmation candle after pullback
-    5. SL below/above weak SR, TP at next SR level
+    3. Find nearest Order Block or Supply & Demand zone near broken SR
+    4. Wait for pullback/retest to OB or SD zone (NOT just raw SR level)
+    5. Enter on confirmation candle after pullback touches OB/SD zone
+    6. SL below/above OB/SD zone, TP based on RR ratio
+
+    Key improvement: Entry is refined by waiting for pullback to
+    institutional zones (OB/SD) rather than plain SR level, giving
+    higher probability entries with tighter stops.
     """
 
     def __init__(self, data_handler):
@@ -85,7 +90,7 @@ class BreakoutPullbackStrategy:
 
     def analyze(self, timeframe="M5"):
         """
-        Analyze for Breakout + Pullback setup.
+        Analyze for Breakout + Pullback to OB/SD zone setup.
 
         Returns:
             TradeSignal or None
@@ -105,8 +110,14 @@ class BreakoutPullbackStrategy:
         pip_value = self.data._get_pip_value()
         current_price = df['close'].iloc[-1]
 
-        # Check for recent breakout
-        signal = self._detect_breakout_pullback(df, sr_levels, pip_value, current_price)
+        # Detect OB and SD zones for pullback targets
+        ob_zones = self._detect_order_blocks_local(df, pip_value)
+        sd_zones = self._detect_sd_zones_local(df, pip_value)
+
+        # Check for recent breakout with pullback to OB/SD zone
+        signal = self._detect_breakout_pullback(
+            df, sr_levels, pip_value, current_price, ob_zones, sd_zones
+        )
 
         if signal and signal.valid:
             # Add confluence score
@@ -114,13 +125,14 @@ class BreakoutPullbackStrategy:
                 signal, df, timeframe
             )
             signal.confidence = signal.confluence_score
-            logger.info(f"Breakout+Pullback signal: {signal}")
+            logger.info(f"Breakout+Pullback(OB/SD) signal: {signal}")
 
         return signal if signal and signal.valid else None
 
-    def _detect_breakout_pullback(self, df, sr_levels, pip_value, current_price):
+    def _detect_breakout_pullback(self, df, sr_levels, pip_value, current_price,
+                                    ob_zones, sd_zones):
         """
-        Detect breakout followed by pullback pattern.
+        Detect breakout followed by pullback to nearest OB/SD zone.
         """
         lookback = self.config['lookback_period']
         breakout_threshold = self.config['breakout_threshold_pips'] * pip_value
@@ -134,20 +146,22 @@ class BreakoutPullbackStrategy:
             sr_price = sr['price']
             sr_type = sr['type']
 
-            # --- BULLISH BREAKOUT (Break resistance, pullback to it as support) ---
+            # --- BULLISH BREAKOUT (Break resistance, pullback to OB/SD zone) ---
             if sr_type == 'resistance':
                 breakout_signal = self._check_bullish_breakout(
                     df, sr_price, pip_value, breakout_threshold,
-                    pullback_zone, max_pullback_candles, current_price
+                    pullback_zone, max_pullback_candles, current_price,
+                    ob_zones, sd_zones
                 )
                 if breakout_signal:
                     return breakout_signal
 
-            # --- BEARISH BREAKOUT (Break support, pullback to it as resistance) ---
+            # --- BEARISH BREAKOUT (Break support, pullback to OB/SD zone) ---
             elif sr_type == 'support':
                 breakout_signal = self._check_bearish_breakout(
                     df, sr_price, pip_value, breakout_threshold,
-                    pullback_zone, max_pullback_candles, current_price
+                    pullback_zone, max_pullback_candles, current_price,
+                    ob_zones, sd_zones
                 )
                 if breakout_signal:
                     return breakout_signal
@@ -156,8 +170,16 @@ class BreakoutPullbackStrategy:
 
     def _check_bullish_breakout(self, df, sr_price, pip_value,
                                  breakout_threshold, pullback_zone,
-                                 max_pullback_candles, current_price):
-        """Check for bullish breakout + pullback setup."""
+                                 max_pullback_candles, current_price,
+                                 ob_zones, sd_zones):
+        """
+        Check for bullish breakout + pullback to OB/SD zone setup.
+
+        After breakout of resistance:
+        1. Find nearest demand zone (OB bullish or SD demand) below/near broken SR
+        2. Wait for price to pull back and retest that zone
+        3. Enter on confirmation candle after retest
+        """
         signal = TradeSignal()
         signal.strategy = self.name
         signal.direction = 'buy'
@@ -178,8 +200,24 @@ class BreakoutPullbackStrategy:
             )
 
             if broke_above:
-                # Now check if price pulled back to the broken level
-                pullback_found = False
+                # Find nearest OB/SD zone for pullback target (near/below SR)
+                target_zone = self._find_nearest_zone_for_pullback(
+                    sr_price, pip_value, 'buy', ob_zones, sd_zones
+                )
+
+                if target_zone is None:
+                    # Fallback: no OB/SD found, skip this setup
+                    logger.debug(
+                        f"Bullish breakout at {sr_price:.2f} but no OB/SD zone found for pullback"
+                    )
+                    continue
+
+                zone_high = target_zone['high']
+                zone_low = target_zone['low']
+                zone_buffer = 5 * pip_value
+
+                # Check if price pulled back to the OB/SD zone
+                pullback_to_zone = False
                 confirmation = False
 
                 for j in range(i + 1, min(i + max_pullback_candles + 1, -1)):
@@ -188,27 +226,34 @@ class BreakoutPullbackStrategy:
 
                     pb_candle = df.iloc[j]
 
-                    # Price came back near the broken resistance (now support)
-                    if (pb_candle['low'] <= sr_price + pullback_zone and
-                            pb_candle['low'] >= sr_price - pullback_zone * 0.5):
-                        pullback_found = True
+                    # Price entered or touched the OB/SD zone
+                    if (pb_candle['low'] <= zone_high + zone_buffer and
+                            pb_candle['low'] >= zone_low - zone_buffer):
+                        pullback_to_zone = True
 
-                    # After pullback, check confirmation (bullish candle)
-                    if pullback_found and j > i + 1:
+                    # After pullback to zone, check confirmation (bullish reaction)
+                    if pullback_to_zone and j > i + 1:
                         if (pb_candle['is_bullish'] and
                                 pb_candle['body_ratio'] > 0.5 and
-                                pb_candle['close'] > sr_price):
+                                pb_candle['close'] > zone_high):
                             confirmation = True
                             break
 
-                if pullback_found and confirmation:
-                    # Valid setup - check if current price is still in entry zone
-                    if (current_price >= sr_price and
-                            current_price <= sr_price + pullback_zone * 2):
+                if pullback_to_zone and confirmation:
+                    # Valid setup - check if current price is in entry zone
+                    if (current_price >= zone_high and
+                            current_price <= zone_high + pullback_zone * 2):
 
                         signal.entry_price = current_price
-                        signal.stop_loss = sr_price - (RISK_CONFIG['sl_min_pips'] * pip_value)
+                        signal.stop_loss = zone_low - (10 * pip_value)
                         signal.timeframe = "M5"
+
+                        # Ensure SL within limits
+                        sl_pips = (signal.entry_price - signal.stop_loss) / pip_value
+                        if sl_pips < RISK_CONFIG['sl_min_pips']:
+                            signal.stop_loss = signal.entry_price - (RISK_CONFIG['sl_min_pips'] * pip_value)
+                        elif sl_pips > RISK_CONFIG['sl_max_pips']:
+                            signal.stop_loss = signal.entry_price - (RISK_CONFIG['sl_max_pips'] * pip_value)
 
                         # Calculate TP based on RR
                         sl_distance = signal.entry_price - signal.stop_loss
@@ -219,7 +264,10 @@ class BreakoutPullbackStrategy:
                             'sr_level': sr_price,
                             'breakout_candle_index': i,
                             'pullback_found': True,
-                            'pattern': 'bullish_breakout_pullback'
+                            'pullback_zone_type': target_zone['zone_type'],
+                            'zone_high': zone_high,
+                            'zone_low': zone_low,
+                            'pattern': 'bullish_breakout_pullback_ob_sd'
                         }
                         signal.valid = True
                         return signal
@@ -228,8 +276,16 @@ class BreakoutPullbackStrategy:
 
     def _check_bearish_breakout(self, df, sr_price, pip_value,
                                  breakout_threshold, pullback_zone,
-                                 max_pullback_candles, current_price):
-        """Check for bearish breakout + pullback setup."""
+                                 max_pullback_candles, current_price,
+                                 ob_zones, sd_zones):
+        """
+        Check for bearish breakout + pullback to OB/SD zone setup.
+
+        After breakout of support:
+        1. Find nearest supply zone (OB bearish or SD supply) above/near broken SR
+        2. Wait for price to pull back and retest that zone
+        3. Enter on confirmation candle after retest
+        """
         signal = TradeSignal()
         signal.strategy = self.name
         signal.direction = 'sell'
@@ -249,7 +305,24 @@ class BreakoutPullbackStrategy:
             )
 
             if broke_below:
-                pullback_found = False
+                # Find nearest OB/SD zone for pullback target (near/above SR)
+                target_zone = self._find_nearest_zone_for_pullback(
+                    sr_price, pip_value, 'sell', ob_zones, sd_zones
+                )
+
+                if target_zone is None:
+                    # No OB/SD found, skip this setup
+                    logger.debug(
+                        f"Bearish breakout at {sr_price:.2f} but no OB/SD zone found for pullback"
+                    )
+                    continue
+
+                zone_high = target_zone['high']
+                zone_low = target_zone['low']
+                zone_buffer = 5 * pip_value
+
+                # Check if price pulled back to the OB/SD zone
+                pullback_to_zone = False
                 confirmation = False
 
                 for j in range(i + 1, min(i + max_pullback_candles + 1, -1)):
@@ -258,26 +331,34 @@ class BreakoutPullbackStrategy:
 
                     pb_candle = df.iloc[j]
 
-                    # Price came back near the broken support (now resistance)
-                    if (pb_candle['high'] >= sr_price - pullback_zone and
-                            pb_candle['high'] <= sr_price + pullback_zone * 0.5):
-                        pullback_found = True
+                    # Price entered or touched the OB/SD zone (from below)
+                    if (pb_candle['high'] >= zone_low - zone_buffer and
+                            pb_candle['high'] <= zone_high + zone_buffer):
+                        pullback_to_zone = True
 
-                    # After pullback, check confirmation (bearish candle)
-                    if pullback_found and j > i + 1:
+                    # After pullback to zone, check confirmation (bearish reaction)
+                    if pullback_to_zone and j > i + 1:
                         if (not pb_candle['is_bullish'] and
                                 pb_candle['body_ratio'] > 0.5 and
-                                pb_candle['close'] < sr_price):
+                                pb_candle['close'] < zone_low):
                             confirmation = True
                             break
 
-                if pullback_found and confirmation:
-                    if (current_price <= sr_price and
-                            current_price >= sr_price - pullback_zone * 2):
+                if pullback_to_zone and confirmation:
+                    # Valid setup - check if current price is in entry zone
+                    if (current_price <= zone_low and
+                            current_price >= zone_low - pullback_zone * 2):
 
                         signal.entry_price = current_price
-                        signal.stop_loss = sr_price + (RISK_CONFIG['sl_min_pips'] * pip_value)
+                        signal.stop_loss = zone_high + (10 * pip_value)
                         signal.timeframe = "M5"
+
+                        # Ensure SL within limits
+                        sl_pips = (signal.stop_loss - signal.entry_price) / pip_value
+                        if sl_pips < RISK_CONFIG['sl_min_pips']:
+                            signal.stop_loss = signal.entry_price + (RISK_CONFIG['sl_min_pips'] * pip_value)
+                        elif sl_pips > RISK_CONFIG['sl_max_pips']:
+                            signal.stop_loss = signal.entry_price + (RISK_CONFIG['sl_max_pips'] * pip_value)
 
                         sl_distance = signal.stop_loss - signal.entry_price
                         signal.take_profit = signal.entry_price - (sl_distance * RISK_CONFIG['rr_minimum'])
@@ -287,12 +368,289 @@ class BreakoutPullbackStrategy:
                             'sr_level': sr_price,
                             'breakout_candle_index': i,
                             'pullback_found': True,
-                            'pattern': 'bearish_breakout_pullback'
+                            'pullback_zone_type': target_zone['zone_type'],
+                            'zone_high': zone_high,
+                            'zone_low': zone_low,
+                            'pattern': 'bearish_breakout_pullback_ob_sd'
                         }
                         signal.valid = True
                         return signal
 
         return None
+
+    def _find_nearest_zone_for_pullback(self, sr_price, pip_value, direction,
+                                         ob_zones, sd_zones):
+        """
+        Find the nearest Order Block or Supply & Demand zone near the broken SR level.
+
+        For BUY (bullish breakout): Look for demand zones (bullish OB / demand SD)
+            near or just below the broken resistance level.
+        For SELL (bearish breakout): Look for supply zones (bearish OB / supply SD)
+            near or just above the broken support level.
+
+        Args:
+            sr_price: The broken SR price level
+            pip_value: Value of one pip
+            direction: 'buy' or 'sell'
+            ob_zones: List of detected order blocks
+            sd_zones: List of detected supply/demand zones
+
+        Returns:
+            dict with 'high', 'low', 'zone_type' or None
+        """
+        max_distance_pips = 50  # Max distance from SR to consider a zone relevant
+        max_distance = max_distance_pips * pip_value
+        candidates = []
+
+        if direction == 'buy':
+            # Look for demand zones (bullish OB or demand SD) near/below SR
+            for ob in ob_zones:
+                if ob['type'] == 'bullish_ob':
+                    # Zone should be near or below the broken resistance
+                    zone_mid = (ob['high'] + ob['low']) / 2
+                    distance = sr_price - zone_mid
+                    if -10 * pip_value <= distance <= max_distance:
+                        candidates.append({
+                            'high': ob['high'],
+                            'low': ob['low'],
+                            'zone_type': 'order_block',
+                            'distance': abs(distance),
+                            'strength': ob.get('impulse_strength', 0),
+                        })
+
+            for sd in sd_zones:
+                if sd['type'] == 'demand':
+                    zone_mid = (sd['high'] + sd['low']) / 2
+                    distance = sr_price - zone_mid
+                    if -10 * pip_value <= distance <= max_distance:
+                        candidates.append({
+                            'high': sd['high'],
+                            'low': sd['low'],
+                            'zone_type': 'supply_demand',
+                            'distance': abs(distance),
+                            'strength': sd.get('departure_strength', 0),
+                        })
+
+        elif direction == 'sell':
+            # Look for supply zones (bearish OB or supply SD) near/above SR
+            for ob in ob_zones:
+                if ob['type'] == 'bearish_ob':
+                    zone_mid = (ob['high'] + ob['low']) / 2
+                    distance = zone_mid - sr_price
+                    if -10 * pip_value <= distance <= max_distance:
+                        candidates.append({
+                            'high': ob['high'],
+                            'low': ob['low'],
+                            'zone_type': 'order_block',
+                            'distance': abs(distance),
+                            'strength': ob.get('impulse_strength', 0),
+                        })
+
+            for sd in sd_zones:
+                if sd['type'] == 'supply':
+                    zone_mid = (sd['high'] + sd['low']) / 2
+                    distance = zone_mid - sr_price
+                    if -10 * pip_value <= distance <= max_distance:
+                        candidates.append({
+                            'high': sd['high'],
+                            'low': sd['low'],
+                            'zone_type': 'supply_demand',
+                            'distance': abs(distance),
+                            'strength': sd.get('departure_strength', 0),
+                        })
+
+        if not candidates:
+            return None
+
+        # Sort: prioritize closest zone, then by strength
+        candidates.sort(key=lambda z: (z['distance'], -z['strength']))
+        return candidates[0]
+
+    def _detect_order_blocks_local(self, df, pip_value):
+        """
+        Detect Order Blocks locally for breakout pullback analysis.
+        Simplified detection of OB zones within the current M5 data.
+
+        Returns:
+            List of OB zone dicts with 'type', 'high', 'low', 'impulse_strength'
+        """
+        order_blocks = []
+        min_impulse = 20 * pip_value
+        lookback = min(len(df) - 5, 80)
+
+        for i in range(5, lookback):
+            # === BULLISH ORDER BLOCK ===
+            # Last bearish candle before strong bullish impulse
+            if not df['is_bullish'].iloc[i]:
+                # Check next 2-4 candles for bullish displacement
+                check_end = min(i + 5, len(df))
+                total_move = 0
+                bullish_count = 0
+
+                for j in range(i + 1, check_end):
+                    if df['is_bullish'].iloc[j]:
+                        bullish_count += 1
+                        total_move += df['body'].iloc[j]
+
+                if bullish_count >= 2 and total_move >= min_impulse:
+                    ob_high = df['high'].iloc[i]
+                    ob_low = df['low'].iloc[i]
+
+                    # Check if not mitigated (price hasn't closed below OB low)
+                    mitigated = False
+                    for k in range(i + 1, len(df) - 1):
+                        if df['close'].iloc[k] < ob_low:
+                            mitigated = True
+                            break
+
+                    if not mitigated:
+                        order_blocks.append({
+                            'type': 'bullish_ob',
+                            'high': ob_high,
+                            'low': ob_low,
+                            'impulse_strength': total_move / pip_value,
+                            'formed_index': i,
+                        })
+
+            # === BEARISH ORDER BLOCK ===
+            # Last bullish candle before strong bearish impulse
+            if df['is_bullish'].iloc[i]:
+                check_end = min(i + 5, len(df))
+                total_move = 0
+                bearish_count = 0
+
+                for j in range(i + 1, check_end):
+                    if not df['is_bullish'].iloc[j]:
+                        bearish_count += 1
+                        total_move += df['body'].iloc[j]
+
+                if bearish_count >= 2 and total_move >= min_impulse:
+                    ob_high = df['high'].iloc[i]
+                    ob_low = df['low'].iloc[i]
+
+                    mitigated = False
+                    for k in range(i + 1, len(df) - 1):
+                        if df['close'].iloc[k] > ob_high:
+                            mitigated = True
+                            break
+
+                    if not mitigated:
+                        order_blocks.append({
+                            'type': 'bearish_ob',
+                            'high': ob_high,
+                            'low': ob_low,
+                            'impulse_strength': total_move / pip_value,
+                            'formed_index': i,
+                        })
+
+        # Sort by recency
+        order_blocks.sort(key=lambda ob: -ob['formed_index'])
+        return order_blocks[:10]
+
+    def _detect_sd_zones_local(self, df, pip_value):
+        """
+        Detect Supply & Demand zones locally for breakout pullback analysis.
+        Simplified detection of SD zones within the current M5 data.
+
+        Returns:
+            List of SD zone dicts with 'type', 'high', 'low', 'departure_strength'
+        """
+        zones = []
+        min_departure = 15 * pip_value
+        lookback = min(len(df) - 5, 80)
+
+        for i in range(5, lookback):
+            # === DEMAND ZONE (strong bullish departure) ===
+            if (df['is_bullish'].iloc[i] and
+                    df['body'].iloc[i] > min_departure and
+                    df['body_ratio'].iloc[i] > 0.6):
+
+                # Find base before departure (2-5 small candles)
+                base_start = None
+                for length in range(2, 6):
+                    start = i - length
+                    if start < 0:
+                        continue
+                    segment = df.iloc[start:i]
+                    avg_body_ratio = segment['body_ratio'].mean()
+                    if avg_body_ratio < 0.55:
+                        base_start = start
+                        break
+
+                if base_start is not None:
+                    zone_high = df['high'].iloc[base_start:i].max()
+                    zone_low = df['low'].iloc[base_start:i].min()
+                    zone_width = zone_high - zone_low
+
+                    if 3 * pip_value < zone_width < 50 * pip_value:
+                        # Check freshness (not retested more than once)
+                        tests = 0
+                        in_zone = False
+                        for k in range(i + 1, len(df)):
+                            price_in = (df['low'].iloc[k] <= zone_high and
+                                       df['high'].iloc[k] >= zone_low)
+                            if price_in and not in_zone:
+                                tests += 1
+                                in_zone = True
+                            elif not price_in:
+                                in_zone = False
+
+                        if tests <= 1:
+                            zones.append({
+                                'type': 'demand',
+                                'high': zone_high,
+                                'low': zone_low,
+                                'departure_strength': df['body'].iloc[i] / pip_value,
+                                'formed_index': i,
+                                'fresh': tests == 0,
+                            })
+
+            # === SUPPLY ZONE (strong bearish departure) ===
+            if (not df['is_bullish'].iloc[i] and
+                    df['body'].iloc[i] > min_departure and
+                    df['body_ratio'].iloc[i] > 0.6):
+
+                base_start = None
+                for length in range(2, 6):
+                    start = i - length
+                    if start < 0:
+                        continue
+                    segment = df.iloc[start:i]
+                    avg_body_ratio = segment['body_ratio'].mean()
+                    if avg_body_ratio < 0.55:
+                        base_start = start
+                        break
+
+                if base_start is not None:
+                    zone_high = df['high'].iloc[base_start:i].max()
+                    zone_low = df['low'].iloc[base_start:i].min()
+                    zone_width = zone_high - zone_low
+
+                    if 3 * pip_value < zone_width < 50 * pip_value:
+                        tests = 0
+                        in_zone = False
+                        for k in range(i + 1, len(df)):
+                            price_in = (df['low'].iloc[k] <= zone_high and
+                                       df['high'].iloc[k] >= zone_low)
+                            if price_in and not in_zone:
+                                tests += 1
+                                in_zone = True
+                            elif not price_in:
+                                in_zone = False
+
+                        if tests <= 1:
+                            zones.append({
+                                'type': 'supply',
+                                'high': zone_high,
+                                'low': zone_low,
+                                'departure_strength': df['body'].iloc[i] / pip_value,
+                                'formed_index': i,
+                                'fresh': tests == 0,
+                            })
+
+        # Sort by recency
+        zones.sort(key=lambda z: -z['formed_index'])
+        return zones[:10]
 
     def _calculate_confluence(self, signal, df, timeframe):
         """Calculate confluence score for the signal (0-1)."""
